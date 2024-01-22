@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title></title>
+<script type="text/javascript">
+window.onload = function() {
+
+var canvas3d = document.getElementById("hoge_canvas");
+var gl = canvas3d.getContext("webgl");
+
+var canvas2d = document.getElementById("fuga_canvas");
+var context = canvas2d.getContext("2d");
+
+// 3Dグラフィック画面の描画
+gl.clearColor(0.0, 0.0, 1.0, 1.0);
+gl.clearDepth(1.0);
+gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+// 2Dグラフィック画面の描画
+context.fillStyle = "rgba(0, 0, 0, 0)";
+context.fillRect(0, 0, canvas2d.width, canvas2d.height);
+context.font = "24px 'ＭＳ ゴシック'";
+context.fillStyle = "rgb(255, 0, 255)";
+context.fillText("Hello World !!", 0, 24);
+
+};
+</script>
+</head>
+<body>
+<div align="center">
+  <div style="position:relative">
+    <canvas id="hoge_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+    <canvas id="fuga_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+  </div>
+</div>
+</body>
+</html>
