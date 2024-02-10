@@ -87,7 +87,6 @@ function init3D(gl, glu) {
       vTextureCoord = aTextureCoord;
     }
   `;
-
   const fsSource = `
     uniform sampler2D uSampler;
 
@@ -97,17 +96,16 @@ function init3D(gl, glu) {
       gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
     }
   `;
+  var shader = new _GLShader(vsSource, fsSource);
+  shader.use();
 
-  var shaderProgram = createShaderProgram(vsSource, fsSource);
-  gl.useProgram(shaderProgram);
+  aVertexPosition = shader.attrib("aVertexPosition");
+  aTextureCoord = shader.attrib("aTextureCoord");
 
-  aVertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-  aTextureCoord = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+  var uProjectionMatrix = shader.uniform("uProjectionMatrix");
+  uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
-  var uProjectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
-  uModelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");
-
-  var uSampler = gl.getUniformLocation(shaderProgram, "uSampler");
+  var uSampler = shader.uniform("uSampler");
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 
@@ -128,7 +126,7 @@ function init3D(gl, glu) {
   gls.setMap(map);
 }
 
-function init2D() {
+function init2D(g) {
 }
 
 function clear2D(g) {

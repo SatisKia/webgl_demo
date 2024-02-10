@@ -1773,7 +1773,6 @@ function init3D(_gl, glu) {
       vNormal = vec3(uNormalMatrix * vec4(aVertexNormal, 1.0));
     }
   `;
-
   const fsSource = `
     //precision mediump int;
     precision mediump float;
@@ -1810,30 +1809,29 @@ function init3D(_gl, glu) {
       gl_FragColor = vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
     }
   `;
+  var shader = new _GLShader(vsSource, fsSource);
+  shader.use();
 
-  var shaderProgram = createShaderProgram(vsSource, fsSource);
-  gl.useProgram(shaderProgram);
+  aVertexPosition = shader.attrib("aVertexPosition");
+  aVertexNormal = shader.attrib("aVertexNormal");
+  aVertexColor = shader.attrib("aVertexColor");
 
-  aVertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-  aVertexNormal = gl.getAttribLocation(shaderProgram, "aVertexNormal");
-  aVertexColor = gl.getAttribLocation(shaderProgram, "aVertexColor");
+  var uProjectionMatrix = shader.uniform("uProjectionMatrix");
+  var uModelViewMatrix = shader.uniform("uModelViewMatrix");
+  var uNormalMatrix = shader.uniform("uNormalMatrix");
 
-  var uProjectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
-  var uModelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");
-  var uNormalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+  var uDirectionalLightColor = shader.uniform("uDirectionalLightColor");
+  uDirectionalLightPosition = shader.uniform("uDirectionalLightPosition");
 
-  var uDirectionalLightColor = gl.getUniformLocation(shaderProgram, "uDirectionalLightColor");
-  uDirectionalLightPosition = gl.getUniformLocation(shaderProgram, "uDirectionalLightPosition");
+  var uAmbientLightColor = shader.uniform("uAmbientLightColor");
 
-  var uAmbientLightColor = gl.getUniformLocation(shaderProgram, "uAmbientLightColor");
+  var uEyeDirection = shader.uniform("uEyeDirection");
+  var uSpecularLightColor = shader.uniform("uSpecularLightColor");
 
-  var uEyeDirection = gl.getUniformLocation(shaderProgram, "uEyeDirection");
-  var uSpecularLightColor = gl.getUniformLocation(shaderProgram, "uSpecularLightColor");
-
-  uDiffuse = gl.getUniformLocation(shaderProgram, "uDiffuse");
-  uAmbient = gl.getUniformLocation(shaderProgram, "uAmbient");
-  uSpecular = gl.getUniformLocation(shaderProgram, "uSpecular");
-  uShininess = gl.getUniformLocation(shaderProgram, "uShininess");
+  uDiffuse = shader.uniform("uDiffuse");
+  uAmbient = shader.uniform("uAmbient");
+  uSpecular = shader.uniform("uSpecular");
+  uShininess = shader.uniform("uShininess");
 
   model = createGLModel(model_sphere, 0.015, -1, true, true);
 
@@ -1871,7 +1869,7 @@ function init3D(_gl, glu) {
   setMaterial();
 }
 
-function init2D() {
+function init2D(g) {
 }
 
 function clear2D(g) {

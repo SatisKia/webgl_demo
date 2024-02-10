@@ -123,7 +123,6 @@ function init3D(gl, glu) {
       vNormal = vec3(uNormalMatrix * vec4(aVertexNormal, 1.0));
     }
   `;
-
   const fsSource = `
     //precision mediump int;
     precision mediump float;
@@ -150,24 +149,23 @@ function init3D(gl, glu) {
       gl_FragColor = vec4(color.rgb * (diffuse + ambient), color.a);
     }
   `;
+  var shader = new _GLShader(vsSource, fsSource);
+  shader.use();
 
-  var shaderProgram = createShaderProgram(vsSource, fsSource);
-  gl.useProgram(shaderProgram);
+  var aVertexPosition = shader.attrib("aVertexPosition");
+  var aVertexNormal = shader.attrib("aVertexNormal");
+  var aTextureCoord = shader.attrib("aTextureCoord");
 
-  var aVertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-  var aVertexNormal = gl.getAttribLocation(shaderProgram, "aVertexNormal");
-  var aTextureCoord = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+  var uProjectionMatrix = shader.uniform("uProjectionMatrix");
+  var uModelViewMatrix = shader.uniform("uModelViewMatrix");
+  var uNormalMatrix = shader.uniform("uNormalMatrix");
 
-  var uProjectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
-  var uModelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");
-  var uNormalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+  var uDirectionalLightColor = shader.uniform("uDirectionalLightColor");
+  var uDirectionalLightPosition = shader.uniform("uDirectionalLightPosition");
 
-  var uDirectionalLightColor = gl.getUniformLocation(shaderProgram, "uDirectionalLightColor");
-  var uDirectionalLightPosition = gl.getUniformLocation(shaderProgram, "uDirectionalLightPosition");
+  var uAmbientLightColor = shader.uniform("uAmbientLightColor");
 
-  var uAmbientLightColor = gl.getUniformLocation(shaderProgram, "uAmbientLightColor");
-
-  var uSampler = gl.getUniformLocation(shaderProgram, "uSampler");
+  var uSampler = shader.uniform("uSampler");
 
   const positions = [
     -1.0, -1.0,  1.0,  1.0, -1.0,  1.0, -1.0,  1.0,  1.0,  1.0,  1.0,  1.0, // 前面
@@ -246,7 +244,7 @@ function init3D(gl, glu) {
   gl.uniform1i(uSampler, 0);
 }
 
-function init2D() {
+function init2D(g) {
 }
 
 function clear2D(g) {

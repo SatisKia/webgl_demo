@@ -62,7 +62,6 @@ function init3D(gl, glu) {
       vColor = aVertexColor;
     }
   `;
-
   const fsSource = `
     varying lowp vec4 vColor;
 
@@ -70,7 +69,6 @@ function init3D(gl, glu) {
       gl_FragColor = vColor;
     }
   `;
-
   var shaderProgram = createShaderProgram(vsSource, fsSource);
   gl.useProgram(shaderProgram);
 
@@ -111,7 +109,7 @@ function init3D(gl, glu) {
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 }
 
-function init2D() {
+function init2D(g) {
 }
 
 function clear2D(g) {

@@ -11,6 +11,8 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
+var useGouraud = false;
+
 var model_sphere = [
 1,
 -1,0.8,0.6,0,0,5,
@@ -1611,6 +1613,7 @@ function init3D(gl, glu) {
   var modelViewMatrix = glu.glMatrix();
   glu.pop();
 
+  // フォンシェーディング（Phong shading）
   const vsSource = `
     //precision mediump int;
     //precision mediump float;
@@ -1634,7 +1637,6 @@ function init3D(gl, glu) {
       vNormal = vec3(uNormalMatrix * vec4(aVertexNormal, 1.0));
     }
   `;
-
   const fsSource = `
     //precision mediump int;
     precision mediump float;
@@ -1672,29 +1674,97 @@ function init3D(gl, glu) {
     }
   `;
 
-  var shaderProgram = createShaderProgram(vsSource, fsSource);
-  gl.useProgram(shaderProgram);
+  // グーローシェーディング（Gouraud shading）
+  const vsSourceGouraud = `
+    //precision mediump int;
+    //precision mediump float;
 
-  aVertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-  aVertexNormal = gl.getAttribLocation(shaderProgram, "aVertexNormal");
-  aVertexColor = gl.getAttribLocation(shaderProgram, "aVertexColor");
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec4 aVertexColor;
 
-  var uProjectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
-  var uModelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");
-  var uNormalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+    uniform mat4 uProjectionMatrix;
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uNormalMatrix;
 
-  var uDirectionalLightColor = gl.getUniformLocation(shaderProgram, "uDirectionalLightColor");
-  var uDirectionalLightPosition = gl.getUniformLocation(shaderProgram, "uDirectionalLightPosition");
+    uniform vec3 uDirectionalLightColor;
+    uniform vec3 uDirectionalLightPosition;
 
-  var uAmbientLightColor = gl.getUniformLocation(shaderProgram, "uAmbientLightColor");
+    uniform vec3 uAmbientLightColor;
 
-  var uEyeDirection = gl.getUniformLocation(shaderProgram, "uEyeDirection");
-  var uSpecularLightColor = gl.getUniformLocation(shaderProgram, "uSpecularLightColor");
+    uniform vec3 uEyeDirection;
+    uniform vec3 uSpecularLightColor;
 
-  var uDiffuse = gl.getUniformLocation(shaderProgram, "uDiffuse");
-  var uAmbient = gl.getUniformLocation(shaderProgram, "uAmbient");
-  var uSpecular = gl.getUniformLocation(shaderProgram, "uSpecular");
-  var uShininess = gl.getUniformLocation(shaderProgram, "uShininess");
+    uniform vec3 uDiffuse;
+    uniform vec3 uAmbient;
+    uniform vec3 uSpecular;
+    uniform float uShininess;
+
+    varying lowp vec4 vColor;
+    varying highp vec3 vDiffuse;
+    varying lowp vec3 vAmbient;
+    varying highp vec3 vSpecular;
+
+    void main(void) {
+      gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aVertexPosition, 1.0);
+
+      vColor = aVertexColor;
+
+      highp vec3 normal = normalize(vec3(uNormalMatrix * vec4(aVertexNormal, 1.0)));
+
+      highp vec3 directionalLightPosition = normalize(uDirectionalLightPosition);
+      highp float cosAngle = clamp(dot(normal, directionalLightPosition), 0.0, 1.0); // ベクトルの内積
+      vDiffuse = (uDirectionalLightColor * uDiffuse) * cosAngle;
+
+      vAmbient = uAmbientLightColor * uAmbient;
+
+      highp vec3 eyeDirection = normalize(uEyeDirection);
+      highp float powCosAngle = pow(clamp(dot(normal, eyeDirection), 0.0, 1.0), uShininess); // 内積によって得られた結果をべき乗によって収束させる
+      vSpecular = (uSpecularLightColor * uSpecular) * powCosAngle;
+    }
+  `;
+  const fsSourceGouraud = `
+    //precision mediump int;
+    //precision mediump float;
+
+    varying lowp vec4 vColor;
+    varying highp vec3 vDiffuse;
+    varying lowp vec3 vAmbient;
+    varying highp vec3 vSpecular;
+
+    void main(void) {
+      gl_FragColor = vec4(vColor.rgb * (vDiffuse + vAmbient + vSpecular), vColor.a);
+    }
+  `;
+
+  var shader;
+  if (useGouraud) {
+    shader = new _GLShader(vsSourceGouraud, fsSourceGouraud);
+  } else {
+    shader = new _GLShader(vsSource, fsSource);
+  }
+  shader.use();
+
+  aVertexPosition = shader.attrib("aVertexPosition");
+  aVertexNormal = shader.attrib("aVertexNormal");
+  aVertexColor = shader.attrib("aVertexColor");
+
+  var uProjectionMatrix = shader.uniform("uProjectionMatrix");
+  var uModelViewMatrix = shader.uniform("uModelViewMatrix");
+  var uNormalMatrix = shader.uniform("uNormalMatrix");
+
+  var uDirectionalLightColor = shader.uniform("uDirectionalLightColor");
+  var uDirectionalLightPosition = shader.uniform("uDirectionalLightPosition");
+
+  var uAmbientLightColor = shader.uniform("uAmbientLightColor");
+
+  var uEyeDirection = shader.uniform("uEyeDirection");
+  var uSpecularLightColor = shader.uniform("uSpecularLightColor");
+
+  var uDiffuse = shader.uniform("uDiffuse");
+  var uAmbient = shader.uniform("uAmbient");
+  var uSpecular = shader.uniform("uSpecular");
+  var uShininess = shader.uniform("uShininess");
 
   model = createGLModel(model_sphere, 0.015, -1, true, true);
 
@@ -1728,7 +1798,7 @@ function init3D(gl, glu) {
   gl.uniform1f(uShininess, 50.0);
 }
 
-function init2D() {
+function init2D(g) {
 }
 
 function clear2D(g) {
