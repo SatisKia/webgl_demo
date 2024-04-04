@@ -242,6 +242,8 @@ function init3D(gl, glu) {
   gl.uniform3fv(uAmbientLightColor, [0.6, 0.6, 0.6]);
 
   gl.uniform1i(uSampler, 0);
+
+  return true;
 }
 
 function init2D(g) {

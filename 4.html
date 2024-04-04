@@ -135,6 +135,8 @@ function init3D(gl, glu) {
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
   gl.uniform1i(uSampler, 0);
+
+  return true;
 }
 
 function init2D(g) {

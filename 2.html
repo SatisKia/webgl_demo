@@ -107,6 +107,8 @@ function init3D(gl, glu) {
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
+
+  return true;
 }
 
 function init2D(g) {
