@@ -121,7 +121,7 @@ function init3D(gl, glu) {
   map[2] = 256; map[3] = 256;
   map[4] =   0; map[5] =   0;
   map[6] = 256; map[7] =   0;
-  gls = new _GLSprite(true);
+  gls = new _GLSprite(-1, true);
   gls.setCoord(coord);
   gls.setMap(map);
 
@@ -186,13 +186,19 @@ function glTextureWrap(gl, index) {
 }
 
 // _GLSprite用
-function glSpriteBindPositionBuffer(gl) {
+function glSpriteActiveTexture(gl, id) {
+  return gl.TEXTURE0;
+}
+function glSpriteBindPositionBuffer(gl, id) {
   gl.vertexAttribPointer(aVertexPosition, 3, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(aVertexPosition);
 }
-function glSpriteBindTextureCoordBuffer(gl) {
+function glSpriteBindTextureCoordBuffer(gl, id) {
   gl.vertexAttribPointer(aTextureCoord, 2, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(aTextureCoord);
+}
+function glSpriteSetTexture(gl, glt/*_GLTexture*/, tex_index, id) {
+  return false;
 }
 
 function processEvent(type, param) {
