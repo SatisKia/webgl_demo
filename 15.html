@@ -67,6 +67,22 @@ var uOrthoMatrixMirror;
 var uSamplerMirror;
 var uAlphaMirror;
 
+var elapse = 0.0;
+var uFrequencyX = new Array(2);
+var uFrequencyY = new Array(2);
+var uAmplitudeX = new Array(2);
+var uAmplitudeY = new Array(2);
+var uSpeedX = new Array(2);
+var uSpeedY = new Array(2);
+var uElapse = new Array(2);
+var uFrequencyXMirror;
+var uFrequencyYMirror;
+var uAmplitudeXMirror;
+var uAmplitudeYMirror;
+var uSpeedXMirror;
+var uSpeedYMirror;
+var uElapseMirror;
+
 var model = new Array(4);
 
 var shadowFlag;
@@ -320,6 +336,11 @@ function init3D(gl, _glu) {
     uniform float uTolerance;
     uniform sampler2D uSamplerShadowmap;
 
+    uniform float uFrequencyX, uFrequencyY; // 波の頻度
+    uniform float uAmplitudeX, uAmplitudeY; // 揺れ幅
+    uniform float uSpeedX, uSpeedY; // 揺れのスピード
+    uniform float uElapse; // 経過時間
+
     varying vec3 vPosition;
     varying vec3 vNormal;
     varying vec4 vColor;
@@ -331,11 +352,21 @@ function init3D(gl, _glu) {
       vec3 invLight = normalize(uInvModelMatrix * vec4(light, 0.0)).xyz;
       float diffuse = clamp(dot(vNormal, invLight), 0.2, 1.0);
 
+      float offsetX = 0.0;
+      if (uFrequencyX != 0.0) {
+        offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+      }
+      float offsetY = 0.0;
+      if (uFrequencyY != 0.0) {
+        offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+      }
+      vec4 textureCoordShadowmap = vec4(vTextureCoordShadowmap.x + offsetX, vTextureCoordShadowmap.y + offsetY, vTextureCoordShadowmap.z, vTextureCoordShadowmap.w);
+
       vec4 depthColor = vec4(1.0);
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        float z = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap).r;
+        float z = texture2DProj(uSamplerShadowmap, textureCoordShadowmap).r;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -384,6 +415,11 @@ function init3D(gl, _glu) {
     uniform sampler2D uSamplerShadowmap;
     uniform sampler2D uSampler;
 
+    uniform float uFrequencyX, uFrequencyY; // 波の頻度
+    uniform float uAmplitudeX, uAmplitudeY; // 揺れ幅
+    uniform float uSpeedX, uSpeedY; // 揺れのスピード
+    uniform float uElapse; // 経過時間
+
     varying vec3 vPosition;
     varying vec3 vNormal;
     varying vec2 vTextureCoord;
@@ -395,11 +431,21 @@ function init3D(gl, _glu) {
       //vec3 invLight = normalize(uInvModelMatrix * vec4(light, 0.0)).xyz;
       //float diffuse = clamp(dot(vNormal, invLight), 0.2, 1.0);
 
+      float offsetX = 0.0;
+      if (uFrequencyX != 0.0) {
+        offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+      }
+      float offsetY = 0.0;
+      if (uFrequencyY != 0.0) {
+        offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+      }
+      vec4 textureCoordShadowmap = vec4(vTextureCoordShadowmap.x + offsetX, vTextureCoordShadowmap.y + offsetY, vTextureCoordShadowmap.z, vTextureCoordShadowmap.w);
+
       vec4 depthColor = vec4(1.0);
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        float z = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap).r;
+        float z = texture2DProj(uSamplerShadowmap, textureCoordShadowmap).r;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -431,6 +477,14 @@ function init3D(gl, _glu) {
       uSampler = sceneShader[i].uniform("uSampler");
     }
     uMirror[i] = sceneShader[i].uniform("uMirror");
+
+    uFrequencyX[i] = sceneShader[i].uniform('uFrequencyX');
+    uFrequencyY[i] = sceneShader[i].uniform('uFrequencyY');
+    uAmplitudeX[i] = sceneShader[i].uniform('uAmplitudeX');
+    uAmplitudeY[i] = sceneShader[i].uniform('uAmplitudeY');
+    uSpeedX[i] = sceneShader[i].uniform('uSpeedX');
+    uSpeedY[i] = sceneShader[i].uniform('uSpeedY');
+    uElapse[i] = sceneShader[i].uniform('uElapse');
   }
 
   var vsSourceMirror = `
@@ -453,10 +507,24 @@ function init3D(gl, _glu) {
     uniform sampler2D uSampler;
     uniform float uAlpha;
 
+    uniform float uFrequencyX, uFrequencyY; // 波の頻度
+    uniform float uAmplitudeX, uAmplitudeY; // 揺れ幅
+    uniform float uSpeedX, uSpeedY; // 揺れのスピード
+    uniform float uElapse; // 経過時間
+
     varying vec2 vTextureCoord;
 
     void main(void) {
-      gl_FragColor = vec4(texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)).rgb, uAlpha);
+      float offsetX = 0.0;
+      if (uFrequencyX != 0.0) {
+        offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+      }
+      float offsetY = 0.0;
+      if (uFrequencyY != 0.0) {
+        offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+      }
+      vec4 color = texture2D(uSampler, vec2(vTextureCoord.x + offsetX, vTextureCoord.y + offsetY));
+      gl_FragColor = vec4(color.rgb, uAlpha);
     }
   `;
   mirrorShader = new _GLShader(vsSourceMirror, fsSourceMirror);
@@ -465,6 +533,14 @@ function init3D(gl, _glu) {
   uOrthoMatrixMirror = mirrorShader.uniform('uOrthoMatrix');
   uSamplerMirror = mirrorShader.uniform('uSampler');
   uAlphaMirror = mirrorShader.uniform('uAlpha');
+
+  uFrequencyXMirror = mirrorShader.uniform('uFrequencyX');
+  uFrequencyYMirror = mirrorShader.uniform('uFrequencyY');
+  uAmplitudeXMirror = mirrorShader.uniform('uAmplitudeX');
+  uAmplitudeYMirror = mirrorShader.uniform('uAmplitudeY');
+  uSpeedXMirror = mirrorShader.uniform('uSpeedX');
+  uSpeedYMirror = mirrorShader.uniform('uSpeedY');
+  uElapseMirror = mirrorShader.uniform('uElapse');
 
   model[0] = createGLModel(model_witch, 0.015, 0, true, false);
   model[1] = createGLModel(model_cat, 0.005, 1, true, false);
@@ -497,7 +573,20 @@ function init3D(gl, _glu) {
     if (i == 1) {
       gl.uniform1i(uSampler, 1/*TEXTURE1*/);
     }
+    gl.uniform1f(uFrequencyX[i], 0.1); // 波のX方向頻度
+    gl.uniform1f(uFrequencyY[i], 0.1); // 波のY方向頻度
+    gl.uniform1f(uAmplitudeX[i], 0.005); // X方向揺れ幅
+    gl.uniform1f(uAmplitudeY[i], 0.005); // Y方向揺れ幅
+    gl.uniform1f(uSpeedX[i], 0.5); // X方向の揺れのスピード
+    gl.uniform1f(uSpeedY[i], 0.5); // Y方向の揺れのスピード
   }
+  mirrorShader.use();
+  gl.uniform1f(uFrequencyXMirror, 0.1); // 波のX方向頻度
+  gl.uniform1f(uFrequencyYMirror, 0.1); // 波のY方向頻度
+  gl.uniform1f(uAmplitudeXMirror, 0.001); // X方向揺れ幅
+  gl.uniform1f(uAmplitudeYMirror, 0.001); // Y方向揺れ幅
+  gl.uniform1f(uSpeedXMirror, 0.5); // X方向の揺れのスピード
+  gl.uniform1f(uSpeedYMirror, 0.5); // Y方向の揺れのスピード
 
   setLightPos(gl);
 
@@ -513,6 +602,15 @@ function clear2D(g) {
 }
 
 function paint3D(gl, glu) {
+  // 経過時間
+  elapse += 1.0;
+  sceneShader[0].use();
+  gl.uniform1f(uElapse[0], elapse);
+  sceneShader[1].use();
+  gl.uniform1f(uElapse[1], elapse);
+  mirrorShader.use();
+  gl.uniform1f(uElapseMirror, elapse);
+
   var key = getKeypadState();
   if ((key & keyBit(window._KEY_UP   )) != 0) { lightY += 0.1; }
   if ((key & keyBit(window._KEY_DOWN )) != 0) { lightY -= 0.1; }
@@ -809,7 +907,18 @@ function glDrawUseProgram(gl, p, index) {
     shadowmapShader.use();
   } else {
     // プログラムオブジェクトの選択
-    sceneShader[(p.id() == 0) ? 1 : 0].use();
+    var i = (p.id() == 0) ? 1 : 0;
+    sceneShader[i].use();
+
+    if (p.id() == 3) {
+      // 反射面の板の場合、影の揺れを設定する
+      gl.uniform1f(uFrequencyX[i], 0.1);
+      gl.uniform1f(uFrequencyY[i], 0.1);
+    } else {
+      // 反射面の板でない場合、影の揺れを無くす
+      gl.uniform1f(uFrequencyX[i], 0.0);
+      gl.uniform1f(uFrequencyY[i], 0.0);
+    }
   }
 }
 function glDrawSetProjectionMatrix(gl, mat, p, index) {
