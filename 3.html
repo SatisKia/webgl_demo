@@ -18,7 +18,7 @@ var image;
 var imageData;
 var textureId;
 
-function imageDataFromImage(image/*Image*/) {
+function myImageDataFromImage(image/*Image*/) {
   var canvas = document.createElement("canvas");
   var context = canvas.getContext("2d");
   canvas.width = image.width;
@@ -51,7 +51,7 @@ function paint(g) {
 }
 
 function init3D(gl, glu) {
-  imageData = imageDataFromImage(image);
+  imageData = myImageDataFromImage(image);
 
   textureId = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, textureId);

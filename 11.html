@@ -35,7 +35,7 @@ var angle = 0.0;
 var screenshotFlag = false;
 var hide2DFlag = false;
 
-function imageFromImageData(imageData/*ImageData*/, func) {
+function myImageFromImageData(imageData/*ImageData*/, func) {
   var canvas = document.createElement("canvas");
   var context = canvas.getContext("2d");
   canvas.width = imageData.width;
@@ -49,12 +49,12 @@ function imageFromImageData(imageData/*ImageData*/, func) {
   image.src = canvas.toDataURL();
 }
 
-function saveCanvas(canvas) {
+function mySaveCanvas(canvas) {
   var data = canvas.toDataURL("image/" + saveCanvasType, saveCanvasQuality).replace("image/" + saveCanvasType, "application/octet-stream");
   window.open(data, "save");
 }
 
-function screenshot(width, height, id, id2D) {
+function myScreenshot(width, height, id, id2D) {
   // 3D用canvas
   var canvas3d = document.getElementById(id);
   var gl = canvas3d.getContext("webgl");
@@ -92,20 +92,20 @@ function screenshot(width, height, id, id2D) {
   ss.width = width;
   ss.height = height;
 
-  imageFromImageData(image3d, function(image) {
+  myImageFromImageData(image3d, function(image) {
     // SS画像用canvasにImageを描画
     context.drawImage(image, 0, 0, canvas3d.width, canvas3d.height, 0, 0, ss.width, ss.height);
 
     if (id2D == undefined) {
       // ファイルに保存する
-      saveCanvas(ss);
+      mySaveCanvas(ss);
     } else {
-      imageFromImageData(image2d, function(image) {
+      myImageFromImageData(image2d, function(image) {
         // SS画像用canvasにImageを描画
         context.drawImage(image, 0, 0, canvas2d.width, canvas2d.height, 0, 0, ss.width, ss.height);
 
         // ファイルに保存する
-        saveCanvas(ss);
+        mySaveCanvas(ss);
       });
     }
   });
@@ -285,7 +285,7 @@ function paint3D(gl, glu) {
 
   if (screenshotFlag && hide2DFlag) {
     screenshotFlag = false;
-    screenshot(640, 480, "hoge_canvas");
+    myScreenshot(640, 480, "hoge_canvas");
   }
 }
 
@@ -297,7 +297,7 @@ function paint2D(g) {
 
   if (screenshotFlag && !hide2DFlag) {
     screenshotFlag = false;
-    screenshot(640, 480, "hoge_canvas", "fuga_canvas");
+    myScreenshot(640, 480, "hoge_canvas", "fuga_canvas");
   }
 }
 

@@ -22,7 +22,7 @@ var textureId;
 
 var indexBuffer;
 
-function imageDataFromImage(image/*Image*/) {
+function myImageDataFromImage(image/*Image*/) {
   var canvas = document.createElement("canvas");
   var context = canvas.getContext("2d");
   canvas.width = image.width;
@@ -55,7 +55,7 @@ function paint(g) {
 }
 
 function init3D(gl, glu) {
-  imageData = imageDataFromImage(image);
+  imageData = myImageDataFromImage(image);
 
   textureId = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, textureId);
@@ -345,7 +345,7 @@ function init3D(gl, glu) {
   gl.uniform3fv(uEyeDirection, eyeDirection);
   gl.uniform3fv(uSpecularLightColor, [1.0, 1.0, 1.0]);
 
-  gl.uniform3fv(uDiffuse, [1.0, 1.0, 1.0]);
+  gl.uniform3fv(uDiffuse, [1.0, 1.0, 0.0]);
   gl.uniform3fv(uAmbient, [0.8, 0.8, 0.8]);
   gl.uniform3fv(uSpecular, [0.7, 0.7, 0.7]);
   gl.uniform1f(uShininess, 50.0);

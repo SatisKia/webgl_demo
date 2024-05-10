@@ -31,7 +31,7 @@ var uDirectionalLightPosition;
 var lightPosX = 1.0;
 var lightPosY = 1.0;
 var lightPosZ = 1.0;
-function setLightPos() {
+function mySetLightPos() {
   gl.uniform3fv(uDirectionalLightPosition, [lightPosX, lightPosY, lightPosZ]);
 }
 
@@ -147,7 +147,7 @@ var uAmbient;
 var uSpecular;
 var uShininess;
 var material = 0;
-function setMaterial() {
+function mySetMaterial() {
   var data = MATERIAL_DATA[material];
   gl.uniform3fv(uDiffuse, [data[0], data[1], data[2]]);
   gl.uniform3fv(uAmbient, [data[3], data[4], data[5]]);
@@ -303,7 +303,7 @@ function init3D(_gl, glu) {
   //gl.uniform3fv(uDirectionalLightColor, [0.5, 0.5, 0.5]);
   gl.uniform3fv(uDirectionalLightColor, [1.0, 1.0, 1.0]);
   //gl.uniform3fv(uDirectionalLightPosition, [0.85, 0.8, 0.75]);
-  setLightPos();
+  mySetLightPos();
 
   //gl.uniform3fv(uAmbientLightColor, [0.6, 0.6, 0.6]);
   gl.uniform3fv(uAmbientLightColor, [1.0, 1.0, 1.0]);
@@ -320,7 +320,7 @@ function init3D(_gl, glu) {
   //gl.uniform3fv(uAmbient, [0.3, 0.3, 0.3]);
   //gl.uniform3fv(uSpecular, [0.5, 0.5, 0.5]);
   //gl.uniform1f(uShininess, 50.0);
-  setMaterial();
+  mySetMaterial();
 
   return true;
 }
@@ -341,7 +341,7 @@ function paint3D(gl, glu) {
   if ((key & keyBit(window._KEY_RIGHT)) != 0) { lightPosX += 0.1; }
   if ((key & keyBit(window._KEY_Z    )) != 0) { lightPosZ += 0.1; }
   if ((key & keyBit(window._KEY_X    )) != 0) { lightPosZ -= 0.1; }
-  setLightPos();
+  mySetLightPos();
 
   gl.clearColor(backgroundColorR, backgroundColorG, backgroundColorB, 1.0);
   gl.clearDepth(1.0);
@@ -447,7 +447,7 @@ function processEvent(type, param) {
     if (material >= MATERIAL_DATA.length) {
       material = 0;
     }
-    setMaterial();
+    mySetMaterial();
   }
 }
 

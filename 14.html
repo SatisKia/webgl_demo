@@ -78,7 +78,7 @@ var cameraZ = 7.5;
 var lookX = 0.0;
 var lookY = cameraY;
 var lookZ = 0.0;
-var lightX = -4.0;
+var lightX = -3.0;
 var lightY = 7.5;
 var lightZ = 3.5;
 var transLightX;
@@ -93,7 +93,7 @@ var mouseY;
 var rotateX = 25.0;
 var rotateY = 25.0;
 
-function setLightPos(gl) {
+function mySetLightPos(gl) {
   // モデルの回転に合わせて光源位置を変換
   glu.setIdentity();
   glu.translate(0.0, lookY, 0.0);
@@ -148,7 +148,7 @@ function setLightPos(gl) {
   }
 }
 
-function _createFrameBufferObject(gl, width, height) {
+function myCreateFrameBufferObject(gl, width, height) {
   // フレームバッファ
   var frameBuffer = gl.createFramebuffer();
 
@@ -247,8 +247,8 @@ function init3D(gl, _glu) {
   glt = new _GLTexture(image_array, 3);
 
   // バッファの構築
-  shadowFrameBuffer = _createFrameBufferObject(gl, shadowFrameBufferWidth, shadowFrameBufferHeight);
-  mirrorFrameBuffer = _createFrameBufferObject(gl, mirrorFrameBufferWidth, mirrorFrameBufferHeight);
+  shadowFrameBuffer = myCreateFrameBufferObject(gl, shadowFrameBufferWidth, shadowFrameBufferHeight);
+  mirrorFrameBuffer = myCreateFrameBufferObject(gl, mirrorFrameBufferWidth, mirrorFrameBufferHeight);
 
   const vsSourceShadowmap = `
     attribute vec3 aVertexPosition;
@@ -271,7 +271,11 @@ function init3D(gl, _glu) {
 
     void main(void) {
       float z = gl_FragCoord.z;
-      gl_FragColor = vec4(z, 0.0, 0.0, 1.0);
+      float r = clamp((z - 0.75) * 4.0, 0.0, 1.0);
+      float g = clamp((z - 0.5 ) * 4.0, 0.0, 1.0);
+      float b = clamp((z - 0.25) * 4.0, 0.0, 1.0);
+      float a = clamp((z - 0.0 ) * 4.0, 0.0, 1.0);
+      gl_FragColor = vec4(r, g, b, a);
     }
   `;
   shadowmapShader = new _GLShader(vsSourceShadowmap, fsSourceShadowmap);
@@ -335,7 +339,8 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        float z = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap).r;
+        vec4 color = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
+        float z = (color.r + color.g + color.b + color.a) / 4.0;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -399,7 +404,8 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        float z = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap).r;
+        vec4 color = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
+        float z = (color.r + color.g + color.b + color.a) / 4.0;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -492,14 +498,14 @@ function init3D(gl, _glu) {
   for (i = 0; i < 2; i++) {
     sceneShader[i].use();
     gl.uniformMatrix4fv(uViewProjMatrix[i], false, viewProjMatrix);
-    gl.uniform1f(uTolerance[i], 0.0005);
+    gl.uniform1f(uTolerance[i], 0.001); // 1/1024(=0.00097)より大きい値
     gl.uniform1i(uSamplerShadowmap[i], 0/*TEXTURE0*/);
     if (i == 1) {
       gl.uniform1i(uSampler, 1/*TEXTURE1*/);
     }
   }
 
-  setLightPos(gl);
+  mySetLightPos(gl);
 
   return true;
 }
@@ -529,21 +535,21 @@ function paint3D(gl, glu) {
 
   // ステップ1：上下反転のモデルをフレームバッファに
   mirrorFlag = true;
-  setLightPos(gl);
-  drawScene(gl);
+  mySetLightPos(gl);
+  myDrawScene(gl);
 
   // ステップ2：通常描画
   mirrorFlag = false;
-  setLightPos(gl);
-  drawScene(gl);
+  mySetLightPos(gl);
+  myDrawScene(gl);
 
   // ステップ3：反射面の板を描画、ステンシルバッファに書き込む
-  drawGround(gl);
+  myDrawGround(gl);
 
   // ステップ4：テクスチャバッファに描画されたシーンを、画面全体に描画
-  drawTexture(gl);
+  myDrawTexture(gl);
 }
-function drawScene(gl) {
+function myDrawScene(gl) {
   var gld;
 
   // ステンシルテストの無効化
@@ -625,7 +631,7 @@ function drawScene(gl) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 }
-function drawGround(gl) {
+function myDrawGround(gl) {
   // ステンシル設定
   gl.enable(gl.STENCIL_TEST);
   gl.stencilFunc(gl.ALWAYS, 1, ~0);
@@ -636,7 +642,7 @@ function drawGround(gl) {
   gld.add(model[3], -1, -1, null, -1);
   gld.draw(glt);
 }
-function drawTexture(gl) {
+function myDrawTexture(gl) {
   // プログラムオブジェクトの選択
   mirrorShader.use();
 
