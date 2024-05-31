@@ -187,16 +187,14 @@ function glModelActiveTexture(gl, id) {
   return gl.TEXTURE0;
 }
 function glModelBindPositionBuffer(gl) {
-  gl.vertexAttribPointer(aVertexPosition, 3, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aVertexPosition);
+  _GLShader.bindPositionBuffer(aVertexPosition);
 }
 function glModelBindNormalBuffer(gl) {
 }
 function glModelBindColorBuffer(gl) {
 }
 function glModelBindTextureCoordBuffer(gl) {
-  gl.vertexAttribPointer(aTextureCoord, 2, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aTextureCoord);
+  _GLShader.bindTextureCoordBuffer(aTextureCoord);
 }
 function glModelSetTexture(gl, glt/*_GLTexture*/, index, tex_index) {
   return false;

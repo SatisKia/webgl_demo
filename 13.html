@@ -567,19 +567,15 @@ function glModelActiveTexture(gl, id) {
 function glModelBindPositionBuffer(gl, id) {
   if (shadowFlag) {
     if (id == 0) {
-      gl.vertexAttribPointer(aVertexPositionShadowmap[1], 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexPositionShadowmap[1]);
+      _GLShader.bindPositionBuffer(aVertexPositionShadowmap[1]);
     } else {
-      gl.vertexAttribPointer(aVertexPositionShadowmap[0], 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexPositionShadowmap[0]);
+      _GLShader.bindPositionBuffer(aVertexPositionShadowmap[0]);
     }
   } else {
     if (id == 0) {
-      gl.vertexAttribPointer(aVertexPosition[1], 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexPosition[1]);
+      _GLShader.bindPositionBuffer(aVertexPosition[1]);
     } else {
-      gl.vertexAttribPointer(aVertexPosition[0], 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexPosition[0]);
+      _GLShader.bindPositionBuffer(aVertexPosition[0]);
     }
   }
 }
@@ -587,11 +583,9 @@ function glModelBindNormalBuffer(gl, id) {
   if (shadowFlag) {
   } else {
     if (id == 0) {
-      gl.vertexAttribPointer(aVertexNormal[1], 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexNormal[1]);
+      _GLShader.bindNormalBuffer(aVertexNormal[1]);
     } else {
-      gl.vertexAttribPointer(aVertexNormal[0], 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexNormal[0]);
+      _GLShader.bindNormalBuffer(aVertexNormal[0]);
     }
   }
 }
@@ -599,8 +593,7 @@ function glModelBindColorBuffer(gl, id) {
   if (shadowFlag) {
   } else {
     if (id != 0) {
-      gl.vertexAttribPointer(aVertexColor, 4, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aVertexColor);
+      _GLShader.bindColorBuffer(aVertexColor);
     }
   }
 }
@@ -608,8 +601,7 @@ function glModelBindTextureCoordBuffer(gl, id) {
   if (shadowFlag) {
   } else {
     if (id == 0) {
-      gl.vertexAttribPointer(aTextureCoord, 2, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aTextureCoord);
+      _GLShader.bindColorBuffer(aTextureCoord);
     }
   }
 }

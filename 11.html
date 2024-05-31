@@ -322,12 +322,10 @@ function glSpriteActiveTexture(gl, id) {
   return gl.TEXTURE0;
 }
 function glSpriteBindPositionBuffer(gl, id) {
-  gl.vertexAttribPointer(aVertexPosition, 3, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aVertexPosition);
+  _GLShader.bindPositionBuffer(aVertexPosition);
 }
 function glSpriteBindTextureCoordBuffer(gl, id) {
-  gl.vertexAttribPointer(aTextureCoord, 2, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aTextureCoord);
+  _GLShader.bindTextureCoordBuffer(aTextureCoord);
 }
 function glSpriteSetTexture(gl, glt/*_GLTexture*/, tex_index, id) {
   return false;
