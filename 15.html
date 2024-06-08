@@ -17,7 +17,15 @@ window.onresize = d2js_onresize;
 
 var useGLSprite = true;
 
+var useGLStereo = false;
+var canvasWidth = 1024;
+var useStereoTrans = true;
+var stereoTrans = 0.2;
+var stereoAngle = 1.5;
+
 var glu;
+
+var stereo;
 
 var image_loaded = false;
 var image_array = new Array();
@@ -252,6 +260,13 @@ function init3D(gl, _glu) {
   }
 
   glu = _glu;
+
+  if (useGLStereo) {
+    setCanvasSize(canvasWidth, getHeight());
+    setCanvas3DSize(canvasWidth, getHeight());
+
+    stereo = new _GLStereo(0.0, 0.0, getWidth(), getHeight());
+  }
 
   glt = new _GLTexture(image_array, 3);
 
@@ -554,10 +569,16 @@ function init3D(gl, _glu) {
   glu.setIdentity();
   glu.perspective(fieldOfView, aspect, zNear, zFar);
   var projMatrix = glu.glMatrix();
+  if (useGLStereo) {
+    stereo.setProjectionMatrix(projMatrix);
+  }
 
   // ビュー行列
   glu.lookAt(cameraX, cameraY, cameraZ, lookX, lookY, lookZ, 0.0, 1.0, 0.0);
   var viewMatrix = glu.glMatrix();
+  if (useGLStereo && !useStereoTrans) {
+    stereo.setViewMatrix(viewMatrix, stereoAngle);
+  }
 
   // ビュー×プロジェクション座標変換行列
   glu.set(glu.utMatrix(projMatrix));
@@ -624,6 +645,13 @@ function paint3D(gl, glu) {
   gl.depthFunc(gl.LEQUAL); // 奥にあるものは隠れるようにする
   gl.depthMask(true);
 
+  if (useGLStereo) {
+    stereo.draw();
+  } else {
+    myDraw(gl);
+  }
+}
+function myDraw(gl) {
   // ステップ1：上下反転のモデルをフレームバッファに
   mirrorFlag = true;
   mySetLightPos(gl);
@@ -699,10 +727,18 @@ function myDrawScene(gl) {
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
     gl.clearDepth(1.0);
     gl.clearStencil(0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+    if (useGLStereo) {
+      stereo.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+    } else {
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+    }
 
     // 描画領域を伝える
-    glu.viewport(0.0, 0.0, getWidth(), getHeight());
+    if (useGLStereo) {
+      stereo.viewport();
+    } else {
+      glu.viewport(0.0, 0.0, getWidth(), getHeight());
+    }
   }
 
   // 反射面の板を除くモデルの描画
@@ -982,6 +1018,34 @@ function glSpriteSetTexture(gl, glt/*_GLTexture*/, tex_index, id) {
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, mirrorFrameBuffer.colorBuffer);
   return true;
+}
+
+// _GLStereo用
+function glStereoSetProjectionMatrix(gl, mat) {
+}
+function glStereoSetViewMatrix(gl, mat) {
+  // ビュー×プロジェクション座標変換行列
+  glu.set(glu.utMatrix(stereo.projectionMatrix()));
+  glu.multiply(glu.utMatrix(mat));
+  var viewProjMatrix = glu.glMatrix();
+
+  for (var i = 0; i < 2; i++) {
+    sceneShader[i].use();
+    gl.uniformMatrix4fv(uViewProjMatrix[i], false, viewProjMatrix);
+  }
+}
+function glStereoDraw(gl, glu, leftFlag) {
+  if (useStereoTrans) {
+    // ビュー行列
+    if (leftFlag) {
+      glu.lookAt(cameraX + stereoTrans, cameraY, cameraZ, lookX, lookY, lookZ, 0.0, 1.0, 0.0);
+    } else {
+      glu.lookAt(cameraX - stereoTrans, cameraY, cameraZ, lookX, lookY, lookZ, 0.0, 1.0, 0.0);
+    }
+    glStereoSetViewMatrix(gl, glu.glMatrix());
+  }
+
+  myDraw(gl);
 }
 
 function processEvent(type, param) {
