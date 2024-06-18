@@ -5,21 +5,27 @@
 <title></title>
 <script type="text/javascript" src="d2js.js"></script>
 <script type="text/javascript" src="d2js_gl.js"></script>
-<script type="text/javascript" src="texture_sample1.js"></script>
+<script type="text/javascript" src="texture_sample2.js"></script>
 <script type="text/javascript">
 
 window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
-var setTransparency = false;
+var useFog = true;
 
 var img_loading = false;
 var image_array = new Array(1);
 var glt;
 
-var scroll = 0.0;
-var old_time;
+var aVertexPosition;
+var aTextureCoord;
+var uModelViewMatrix;
+
+var gls;
+
+// カメラの回転
+var angle = 0.0;
 
 function frameTime() {
   return 1000 / 30/*フレーム*/;
@@ -47,8 +53,6 @@ function paint(g) {
 function init3D(gl, glu) {
   glt = new _GLTexture(image_array, 1);
 
-  glt.use(0, setTransparency);
-
   var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
   var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
   var zNear = 0.1; // 表示するオブジェクトの範囲（手前）
@@ -61,13 +65,6 @@ function init3D(gl, glu) {
   glu.frustum(l, r, b, t, zNear, zFar);
   var projectionMatrix = glu.glMatrix();
 
-  glu.setIdentity();
-  glu.translate(0.0, 0.0, -6.0);
-  glu.rotate(15.0, 0, 0, 1); // Z軸回転
-  glu.rotate(30.0, 0, 1, 0); // Y軸回転
-  glu.rotate(45.0, 1, 0, 0); // X軸回転
-  var modelViewMatrix = glu.glMatrix();
-
   const vsSource = `
     attribute vec3 aVertexPosition;
     attribute vec2 aTextureCoord;
@@ -76,70 +73,82 @@ function init3D(gl, glu) {
     uniform mat4 uModelViewMatrix;
 
     varying highp vec2 vTextureCoord;
+    varying float vFogDepth;
 
     void main(void) {
       gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aVertexPosition, 1.0);
 
       vTextureCoord = aTextureCoord;
+
+      vFogDepth = -(uModelViewMatrix * vec4(aVertexPosition, 1.0)).z;
     }
   `;
   const fsSource = `
+    precision mediump float;
+
     uniform sampler2D uSampler;
 
+    uniform int uFog;
+    uniform vec3 uFogColor;
+    uniform float uFogNear;
+    uniform float uFogFar;
+
     varying highp vec2 vTextureCoord;
+    varying float vFogDepth;
 
     void main(void) {
-      gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+      highp vec4 color = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+      if (bool(uFog)) {
+        float fogAmount = smoothstep(uFogNear, uFogFar, vFogDepth);
+        gl_FragColor = vec4(mix(color.rgb, uFogColor, fogAmount), color.a);
+      } else {
+        gl_FragColor = color;
+      }
     }
   `;
   var shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
-  var aVertexPosition = shader.attrib("aVertexPosition");
-  var aTextureCoord = shader.attrib("aTextureCoord");
+  aVertexPosition = shader.attrib("aVertexPosition");
+  aTextureCoord = shader.attrib("aTextureCoord");
 
   var uProjectionMatrix = shader.uniform("uProjectionMatrix");
-  var uModelViewMatrix = shader.uniform("uModelViewMatrix");
+  uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
   var uSampler = shader.uniform("uSampler");
 
-  const positions = [
-    -1.0, -1.0, 0.0, // 左下
-     1.0, -1.0, 0.0, // 右下
-    -1.0,  1.0, 0.0, // 左上
-     1.0,  1.0, 0.0, // 右上
-  ];
-  var positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-  gl.vertexAttribPointer(aVertexPosition, 3, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aVertexPosition);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-  const textureCoordinates = [
-    0.0, 1.0, // 左下
-    1.0, 1.0, // 右下
-    0.0, 0.0, // 左上
-    1.0, 0.0, // 右上
-  ];
-  var textureCoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
-  gl.vertexAttribPointer(aTextureCoord, 2, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aTextureCoord);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  var uFog = shader.uniform("uFog");
+  var uFogColor = shader.uniform("uFogColor");
+  var uFogNear = shader.uniform("uFogNear");
+  var uFogFar = shader.uniform("uFogFar");
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 
-  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
-
   gl.uniform1i(uSampler, 0);
+
+  gl.uniform1i(uFog, useFog);
+  gl.uniform3fv(uFogColor, [0.0, 0.0, 1.0]);
+  gl.uniform1f(uFogNear, 5.0);
+  gl.uniform1f(uFogFar, 20.0);
+
+  var coord = new Array(12);
+  coord[ 0] = -0.5; coord[ 1] = -0.5; coord[ 2] = 0.0;
+  coord[ 3] =  0.5; coord[ 4] = -0.5; coord[ 5] = 0.0;
+  coord[ 6] = -0.5; coord[ 7] =  0.5; coord[ 8] = 0.0;
+  coord[ 9] =  0.5; coord[10] =  0.5; coord[11] = 0.0;
+  var map = new Array(8);
+  map[0] =   0; map[1] = 256;
+  map[2] = 256; map[3] = 256;
+  map[4] =   0; map[5] =   0;
+  map[6] = 256; map[7] =   0;
+  gls = new _GLSprite(-1, true);
+  gls.setCoord(coord);
+  gls.setMap(map);
 
   return true;
 }
 
 function init2D(g) {
-  old_time = currentTimeMillis();
 }
 
 function clear2D(g) {
@@ -148,37 +157,41 @@ function clear2D(g) {
 }
 
 function paint3D(gl, glu) {
+  var camera_x = 0.0;
+  var camera_y = 3.0;
+  var camera_z = 6.0;
+  var look_x = 0.0;
+  var look_y = 0.0;
+  var look_z = 0.0;
+
+  // カメラの回転
+  angle += 0.01;
+  var rot_x = camera_x * Math.cos(angle) - camera_z * Math.sin(angle);
+  var rot_z = camera_z * Math.cos(angle) + camera_x * Math.sin(angle);
+
+  glu.lookAt(rot_x, camera_y, rot_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+
   gl.clearColor(0.0, 0.0, 1.0, 1.0);
   gl.clearDepth(1.0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+
   gl.enable(gl.BLEND);
-  if (setTransparency) {
-    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
-  } else {
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+
+  gl.depthMask(false);
+  var gld = new _GLDraw(null);
+  for (var z = -10; z <= 10; z += 2) {
+    for (var x = -10; x <= 10; x += 2) {
+      gld.addSprite(gls, 0, x, 0.0, z, -1);
+    }
   }
-
-  if (setTransparency) {
-    glt.setTransparency(0, 0.75);
-    gl.depthMask(false);
-  }
-
-  //scroll = -0.25;
-  scroll -= 0.01;
-  glt.translate(0, scroll, scroll);
-
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gld.draw(glt);
 }
 
 function paint2D(g) {
-  g.setFont(24, "ＭＳ ゴシック");
-  g.setColor(g.getColorOfRGB(255, 0, 255));
-
-  var now_time = currentTimeMillis();
-  var time = now_time - old_time;
-  old_time = now_time;
-  g.drawString("fps " + (1000 / time), 0, 24);
 }
 
 // _GLTexture用
@@ -195,7 +208,30 @@ function glTextureFilter(gl, index) {
   return gl.LINEAR;
 }
 function glTextureWrap(gl, index) {
-  return gl.REPEAT;
+  return gl.CLAMP_TO_EDGE;
+}
+
+// _GLSprite用
+function glSpriteActiveTexture(gl, id) {
+  return gl.TEXTURE0;
+}
+function glSpriteBindPositionBuffer(gl, id) {
+  _GLShader.bindPositionBuffer(aVertexPosition);
+}
+function glSpriteBindTextureCoordBuffer(gl, id) {
+  _GLShader.bindTextureCoordBuffer(aTextureCoord);
+}
+function glSpriteSetTexture(gl, glt, tex_index, id) {
+  return false;
+}
+
+// _GLDraw用
+function glDrawUseProgram(gl, p, index) {
+}
+function glDrawSetProjectionMatrix(gl, mat, p, index) {
+}
+function glDrawSetModelViewMatrix(gl, mat) {
+  gl.uniformMatrix4fv(uModelViewMatrix, false, mat);
 }
 
 function processEvent(type, param) {
