@@ -17,7 +17,7 @@ window.onresize = d2js_onresize;
 
 var useGLSprite = true;
 
-var useGLStereo = false;
+var useStereo = false;
 var canvasWidth = 1024;
 var useStereoTrans = true;
 var stereoTrans = 0.2;
@@ -261,7 +261,7 @@ function init3D(gl, _glu) {
 
   glu = _glu;
 
-  if (useGLStereo) {
+  if (useStereo) {
     setCanvasSize(canvasWidth, getHeight());
     setCanvas3DSize(canvasWidth, getHeight());
 
@@ -569,14 +569,14 @@ function init3D(gl, _glu) {
   glu.setIdentity();
   glu.perspective(fieldOfView, aspect, zNear, zFar);
   var projMatrix = glu.glMatrix();
-  if (useGLStereo) {
+  if (useStereo) {
     stereo.setProjectionMatrix(projMatrix);
   }
 
   // ビュー行列
   glu.lookAt(cameraX, cameraY, cameraZ, lookX, lookY, lookZ, 0.0, 1.0, 0.0);
   var viewMatrix = glu.glMatrix();
-  if (useGLStereo && !useStereoTrans) {
+  if (useStereo && !useStereoTrans) {
     stereo.setViewMatrix(viewMatrix, stereoAngle);
   }
 
@@ -645,7 +645,7 @@ function paint3D(gl, glu) {
   gl.depthFunc(gl.LEQUAL); // 奥にあるものは隠れるようにする
   gl.depthMask(true);
 
-  if (useGLStereo) {
+  if (useStereo) {
     stereo.draw();
   } else {
     myDraw(gl);
@@ -727,14 +727,14 @@ function myDrawScene(gl) {
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
     gl.clearDepth(1.0);
     gl.clearStencil(0);
-    if (useGLStereo) {
+    if (useStereo) {
       stereo.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
     } else {
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
     }
 
     // 描画領域を伝える
-    if (useGLStereo) {
+    if (useStereo) {
       stereo.viewport();
     } else {
       glu.viewport(0.0, 0.0, getWidth(), getHeight());
