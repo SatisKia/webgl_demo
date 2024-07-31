@@ -40,12 +40,15 @@ var mirrorFrameBufferHeight = 512; // 2の累乗
 var mirrorFrameBuffer;
 
 var shadowmapShader;
+//---- シェーダープログラムの変数ここから ----
 var aVertexPositionShadowmap;
 var uModelMatrixShadowmap;
 var uLightMatrixShadowmap;
 var uMirrorShadowmap;
+//---- シェーダープログラムの変数ここまで ----
 
 var sceneShader = new Array(2);
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition = new Array(2);
 var aVertexNormal = new Array(2);
 var aVertexColor;
@@ -60,15 +63,19 @@ var uTolerance = new Array(2);
 var uSamplerShadowmap = new Array(2);
 var uSampler;
 var uMirror = new Array(2);
+//---- シェーダープログラムの変数ここまで ----
 
 var mirrorShader;
+//---- シェーダープログラムの変数ここから ----
 var aVertexPositionMirror;
 var aTextureCoordMirror;
 var uOrthoMatrixMirror;
 var uSamplerMirror;
 var uAlphaMirror;
+//---- シェーダープログラムの変数ここまで ----
 
 var elapse = 0.0;
+//---- シェーダープログラムの変数ここから ----
 var uFrequencyX = new Array(2);
 var uFrequencyY = new Array(2);
 var uAmplitudeX = new Array(2);
@@ -83,6 +90,7 @@ var uAmplitudeYMirror;
 var uSpeedXMirror;
 var uSpeedYMirror;
 var uElapseMirror;
+//---- シェーダープログラムの変数ここまで ----
 
 var model = new Array(4);
 
@@ -303,10 +311,12 @@ function init3D(gl, _glu) {
     }
   `;
   shadowmapShader = new _GLShader(vsSourceShadowmap, fsSourceShadowmap);
+  //---- シェーダープログラムの変数ここから ----
   aVertexPositionShadowmap = shadowmapShader.attrib("aVertexPosition");
   uModelMatrixShadowmap = shadowmapShader.uniform("uModelMatrix");
   uLightMatrixShadowmap = shadowmapShader.uniform("uLightMatrix");
   uMirrorShadowmap = shadowmapShader.uniform("uMirror");
+  //---- シェーダープログラムの変数ここまで ----
 
   const vsSourceScene = `
     attribute vec3 aVertexPosition;
@@ -471,6 +481,7 @@ function init3D(gl, _glu) {
   `;
   sceneShader[0] = new _GLShader(vsSourceScene, fsSourceScene);
   sceneShader[1] = new _GLShader(vsSourceSceneTexture, fsSourceSceneTexture);
+  //---- シェーダープログラムの変数ここから ----
   for (i = 0; i < 2; i++) {
     aVertexPosition[i] = sceneShader[i].attrib("aVertexPosition");
     aVertexNormal[i] = sceneShader[i].attrib("aVertexNormal");
@@ -500,6 +511,7 @@ function init3D(gl, _glu) {
     uSpeedY[i] = sceneShader[i].uniform('uSpeedY');
     uElapse[i] = sceneShader[i].uniform('uElapse');
   }
+  //---- シェーダープログラムの変数ここまで ----
 
   var vsSourceMirror = `
     attribute vec3 aVertexPosition;
@@ -542,12 +554,15 @@ function init3D(gl, _glu) {
     }
   `;
   mirrorShader = new _GLShader(vsSourceMirror, fsSourceMirror);
+  //---- シェーダープログラムの変数ここから ----
   aVertexPositionMirror = mirrorShader.attrib('aVertexPosition');
   aTextureCoordMirror = mirrorShader.attrib('aTextureCoord');
   uOrthoMatrixMirror = mirrorShader.uniform('uOrthoMatrix');
   uSamplerMirror = mirrorShader.uniform('uSampler');
   uAlphaMirror = mirrorShader.uniform('uAlpha');
+  //---- シェーダープログラムの変数ここまで ----
 
+  //---- シェーダープログラムの変数ここから ----
   uFrequencyXMirror = mirrorShader.uniform('uFrequencyX');
   uFrequencyYMirror = mirrorShader.uniform('uFrequencyY');
   uAmplitudeXMirror = mirrorShader.uniform('uAmplitudeX');
@@ -555,6 +570,7 @@ function init3D(gl, _glu) {
   uSpeedXMirror = mirrorShader.uniform('uSpeedX');
   uSpeedYMirror = mirrorShader.uniform('uSpeedY');
   uElapseMirror = mirrorShader.uniform('uElapse');
+  //---- シェーダープログラムの変数ここまで ----
 
   model[0] = createGLModel(model_witch, 0.015, 0, true, false);
   model[1] = createGLModel(model_cat, 0.005, 1, true, false);

@@ -47,6 +47,9 @@ var modelViewMatrix;
 
 var model = new Array(3);
 
+var shader;
+
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aVertexNormal;
 var aVertexColor;
@@ -61,6 +64,7 @@ var uDiffuse;
 var uAmbient;
 var uSpecular;
 var uShininess;
+//---- シェーダープログラムの変数ここまで ----
 
 function frameTime() {
   return 1000 / 30/*フレーム*/;
@@ -179,9 +183,10 @@ function init3D(gl, _glu) {
       gl_FragColor = vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
     }
   `;
-  var shader = new _GLShader(vsSource, fsSource);
+  shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aVertexNormal = shader.attrib("aVertexNormal");
   aVertexColor = shader.attrib("aVertexColor");
@@ -207,13 +212,13 @@ function init3D(gl, _glu) {
   uAmbient = shader.uniform("uAmbient");
   uSpecular = shader.uniform("uSpecular");
   uShininess = shader.uniform("uShininess");
+  //---- シェーダープログラムの変数ここまで ----
 
   model[0] = createGLModel(model_sphere, 0.015, 0, true, true);
   model[1] = createGLModel(model_sphere, 0.015, 1, true, true);
   model[2] = createGLModel(model_sphere, 0.015, 2, true, true);
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-
   //gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
   //glu.push();

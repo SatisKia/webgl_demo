@@ -16,9 +16,13 @@ var useGouraud = false;
 
 var model;
 
+var shader;
+
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aVertexNormal;
 var aVertexColor;
+//---- シェーダープログラムの変数ここまで ----
 
 function frameTime() {
   return 1000 / 30/*フレーム*/;
@@ -193,7 +197,6 @@ function init3D(gl, glu) {
     }
   `;
 
-  var shader;
   if (useGouraud) {
     shader = new _GLShader(vsSourceGouraud, fsSourceGouraud);
   } else {
@@ -201,6 +204,7 @@ function init3D(gl, glu) {
   }
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aVertexNormal = shader.attrib("aVertexNormal");
   aVertexColor = shader.attrib("aVertexColor");
@@ -222,11 +226,11 @@ function init3D(gl, glu) {
   var uAmbient = shader.uniform("uAmbient");
   var uSpecular = shader.uniform("uSpecular");
   var uShininess = shader.uniform("uShininess");
+  //---- シェーダープログラムの変数ここまで ----
 
   model = createGLModel(model_sphere, 0.015, -1, true, true);
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
   glu.push();

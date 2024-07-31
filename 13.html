@@ -29,13 +29,16 @@ var shadowFrameBufferHeight = 512 * 4; // 2の累乗
 var shadowFrameBuffer;
 
 var shadowmapShader;
+//---- シェーダープログラムの変数ここから ----
 var aVertexPositionShadowmap;
 var uModelMatrixShadowmap;
 var uLightMatrixShadowmap;
 var uHighPrecisionShadowmap;
 var uTextureFloatShadowmap;
+//---- シェーダープログラムの変数ここまで ----
 
 var sceneShader = new Array(2);
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition = new Array(2);
 var aVertexNormal = new Array(2);
 var aVertexColor;
@@ -51,6 +54,7 @@ var uSamplerShadowmap = new Array(2);
 var uSampler;
 var uHighPrecision = new Array(2);
 var uTextureFloat = new Array(2);
+//---- シェーダープログラムの変数ここまで ----
 
 var model = new Array(4);
 
@@ -87,7 +91,7 @@ function mySetLightPos(gl) {
   transLightY = glu.transY();
   transLightZ = glu.transZ();
 
-  // 光源視点でのプロジェクション行列
+  // 光源視点でのプロジェクション行列（perspectiveを使用。frustum時と描画結果は同じ）
   var fieldOfView = 60.0; // 視野角（度）
   var aspect = shadowFrameBufferWidth / shadowFrameBufferHeight; // 幅と高さの比率はフレームバッファのサイズに合わせる
   var zNear = 0.1; // 表示するオブジェクトの範囲（手前）
@@ -268,11 +272,13 @@ function init3D(gl, _glu) {
     }
   `;
   shadowmapShader = new _GLShader(vsSourceShadowmap, fsSourceShadowmap);
+  //---- シェーダープログラムの変数ここから ----
   aVertexPositionShadowmap = shadowmapShader.attrib("aVertexPosition");
   uModelMatrixShadowmap = shadowmapShader.uniform("uModelMatrix");
   uLightMatrixShadowmap = shadowmapShader.uniform("uLightMatrix");
   uHighPrecisionShadowmap = shadowmapShader.uniform("uHighPrecision");
   uTextureFloatShadowmap = shadowmapShader.uniform("uTextureFloat");
+  //---- シェーダープログラムの変数ここまで ----
 
   const vsSourceScene = `
     attribute vec3 aVertexPosition;
@@ -407,6 +413,7 @@ function init3D(gl, _glu) {
   `;
   sceneShader[0] = new _GLShader(vsSourceScene, fsSourceScene);
   sceneShader[1] = new _GLShader(vsSourceSceneTexture, fsSourceSceneTexture);
+  //---- シェーダープログラムの変数ここから ----
   for (i = 0; i < 2; i++) {
     aVertexPosition[i] = sceneShader[i].attrib("aVertexPosition");
     aVertexNormal[i] = sceneShader[i].attrib("aVertexNormal");
@@ -429,13 +436,14 @@ function init3D(gl, _glu) {
     uHighPrecision[i] = sceneShader[i].uniform("uHighPrecision");
     uTextureFloat[i] = sceneShader[i].uniform("uTextureFloat");
   }
+  //---- シェーダープログラムの変数ここまで ----
 
   model[0] = createGLModel(model_witch, 0.015, 0, true, false);
   model[1] = createGLModel(model_cat, 0.005, 1, true, false);
   model[2] = createGLModel(model_swan, 0.005, 2, true, false);
   model[3] = createGLModel(model_ground, 0.1, 3, true, false);
 
-  // プロジェクション行列
+  // プロジェクション行列（perspectiveを使用。frustum時と描画結果は同じ）
   var fieldOfView = 45.0; // 視野角（度）
   var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
   var zNear = 0.1; // 表示するオブジェクトの範囲（手前）

@@ -18,9 +18,13 @@ var glt;
 
 var modelViewMatrix;
 
+var shader;
+
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aTextureCoord;
 var uModelViewMatrix;
+//---- シェーダープログラムの変数ここまで ----
 
 var gls;
 
@@ -95,9 +99,10 @@ function init3D(gl, glu) {
       gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
     }
   `;
-  var shader = new _GLShader(vsSource, fsSource);
+  shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aTextureCoord = shader.attrib("aTextureCoord");
 
@@ -105,6 +110,7 @@ function init3D(gl, glu) {
   uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
   var uSampler = shader.uniform("uSampler");
+  //---- シェーダープログラムの変数ここまで ----
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 

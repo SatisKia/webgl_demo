@@ -151,6 +151,7 @@ function init3D(gl, glu) {
   var shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   var aVertexPosition = shader.attrib("aVertexPosition");
   var aVertexNormal = shader.attrib("aVertexNormal");
   var aTextureCoord = shader.attrib("aTextureCoord");
@@ -165,6 +166,7 @@ function init3D(gl, glu) {
   var uAmbientLightColor = shader.uniform("uAmbientLightColor");
 
   var uSampler = shader.uniform("uSampler");
+  //---- シェーダープログラムの変数ここまで ----
 
   const positions = [
     -1.0, -1.0,  1.0,  1.0, -1.0,  1.0, -1.0,  1.0,  1.0,  1.0,  1.0,  1.0, // 前面
@@ -225,7 +227,6 @@ function init3D(gl, glu) {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
   glu.push();

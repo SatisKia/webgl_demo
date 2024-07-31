@@ -95,6 +95,7 @@ function init3D(gl, glu) {
   var shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   var aVertexPosition = shader.attrib("aVertexPosition");
   var aTextureCoord = shader.attrib("aTextureCoord");
 
@@ -102,6 +103,7 @@ function init3D(gl, glu) {
   var uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
   var uSampler = shader.uniform("uSampler");
+  //---- シェーダープログラムの変数ここまで ----
 
   const positions = [
     -1.0, -1.0, 0.0, // 左下
@@ -130,7 +132,6 @@ function init3D(gl, glu) {
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
   gl.uniform1i(uSampler, 0);
@@ -155,13 +156,10 @@ function paint3D(gl, glu) {
   gl.enable(gl.BLEND);
   if (setTransparency) {
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
-  } else {
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  }
-
-  if (setTransparency) {
     glt.setTransparency(0, 0.75);
     gl.depthMask(false);
+  } else {
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
   //scroll = -0.25;

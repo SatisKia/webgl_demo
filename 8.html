@@ -20,11 +20,17 @@ var gl;
 
 var model;
 
+var shader;
+
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aVertexNormal;
 var aVertexColor;
+//---- シェーダープログラムの変数ここまで ----
 
+//---- シェーダープログラムの変数ここから ----
 var uDirectionalLightPosition;
+//---- シェーダープログラムの変数ここまで ----
 var lightPosX = 1.0;
 var lightPosY = 1.0;
 var lightPosZ = 1.0;
@@ -139,10 +145,12 @@ var MATERIAL_DATA = [[
   1.0
 ]];
 
+//---- シェーダープログラムの変数ここから ----
 var uDiffuse;
 var uAmbient;
 var uSpecular;
 var uShininess;
+//---- シェーダープログラムの変数ここまで ----
 var material = 0;
 function mySetMaterial() {
   var data = MATERIAL_DATA[material];
@@ -262,9 +270,10 @@ function init3D(_gl, glu) {
       gl_FragColor = vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
     }
   `;
-  var shader = new _GLShader(vsSource, fsSource);
+  shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aVertexNormal = shader.attrib("aVertexNormal");
   aVertexColor = shader.attrib("aVertexColor");
@@ -286,11 +295,11 @@ function init3D(_gl, glu) {
   uAmbient = shader.uniform("uAmbient");
   uSpecular = shader.uniform("uSpecular");
   uShininess = shader.uniform("uShininess");
+  //---- シェーダープログラムの変数ここまで ----
 
   model = createGLModel(model_sphere, 0.015, -1, true, true);
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
   glu.push();

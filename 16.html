@@ -18,9 +18,13 @@ var img_loading = false;
 var image_array = new Array(1);
 var glt;
 
+var shader;
+
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aTextureCoord;
 var uModelViewMatrix;
+//---- シェーダープログラムの変数ここまで ----
 
 var gls;
 
@@ -106,9 +110,10 @@ function init3D(gl, glu) {
       }
     }
   `;
-  var shader = new _GLShader(vsSource, fsSource);
+  shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aTextureCoord = shader.attrib("aTextureCoord");
 
@@ -121,6 +126,7 @@ function init3D(gl, glu) {
   var uFogColor = shader.uniform("uFogColor");
   var uFogNear = shader.uniform("uFogNear");
   var uFogFar = shader.uniform("uFogFar");
+  //---- シェーダープログラムの変数ここまで ----
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 

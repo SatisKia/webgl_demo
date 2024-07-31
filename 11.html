@@ -22,9 +22,13 @@ var glt;
 
 //var modelViewMatrix;
 
+var shader;
+
+//---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aTextureCoord;
 var uModelViewMatrix;
+//---- シェーダープログラムの変数ここまで ----
 
 var gls;
 
@@ -177,9 +181,10 @@ function init3D(gl, glu) {
       gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
     }
   `;
-  var shader = new _GLShader(vsSource, fsSource);
+  shader = new _GLShader(vsSource, fsSource);
   shader.use();
 
+  //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aTextureCoord = shader.attrib("aTextureCoord");
 
@@ -187,6 +192,7 @@ function init3D(gl, glu) {
   uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
   var uSampler = shader.uniform("uSampler");
+  //---- シェーダープログラムの変数ここまで ----
 
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 
@@ -292,7 +298,7 @@ function paint2D(g) {
   g.setFont(24, "ＭＳ ゴシック");
   g.setColor(g.getColorOfRGB(255, 255, 255));
   g.drawString("Screenshot : [S]", 0, 456);
-  g.drawString("Hide 2D : [Shift]+[S]", 0, 480);
+  g.drawString("Screenshot (Hide 2D) : [Shift]+[S]", 0, 480);
 
   if (screenshotFlag && !hide2DFlag) {
     screenshotFlag = false;
