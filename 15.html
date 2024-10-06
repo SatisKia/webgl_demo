@@ -16,6 +16,7 @@ window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
 var useGLSprite = true;
+var gls; // useGLSpriteがtrueの時に使用
 
 var useStereo = false;
 var canvasWidth = 1024;
@@ -93,6 +94,10 @@ var uElapseMirror;
 //---- シェーダープログラムの変数ここまで ----
 
 var model = new Array(4);
+
+// 画面全体を覆う板ポリゴン用（useGLSpriteがfalseの時に使用）
+var positionBuffer;
+var textureCoordBuffer;
 
 var shadowFlag;
 var mirrorFlag;
@@ -577,6 +582,34 @@ function init3D(gl, _glu) {
   model[2] = createGLModel(model_swan, 0.005, 2, true, false);
   model[3] = createGLModel(model_ground, 0.033, 3, true, false);
 
+  // 画面全体を覆う板ポリゴンのデータ
+  const positions = [
+    -1.0,  1.0, 0.0, // 左上
+     1.0,  1.0, 0.0, // 右上
+    -1.0, -1.0, 0.0, // 左下
+     1.0, -1.0, 0.0, // 右下
+  ];
+  const textureCoordinates = [
+    0.0, 0.0, // 左上
+    1.0, 0.0, // 右上
+    0.0, 1.0, // 左下
+    1.0, 1.0, // 右下
+  ];
+if (useGLSprite) {
+  gls = new _GLSprite(-1, false);
+  gls.setCoord(positions);
+  gls.setMap(textureCoordinates, true);
+} else {
+  positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  textureCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+}
+
   // プロジェクション行列
   var fieldOfView = 45.0; // 視野角（度）
   var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
@@ -810,45 +843,14 @@ function myDrawTexture(gl) {
   gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
 
 if (useGLSprite) {
-  const positions = [
-    -1.0,  1.0, 0.0, // 左上
-     1.0,  1.0, 0.0, // 右上
-    -1.0, -1.0, 0.0, // 左下
-     1.0, -1.0, 0.0, // 右下
-  ];
-  const textureCoordinates = [
-    0.0, 0.0, // 左上
-    1.0, 0.0, // 右上
-    0.0, 1.0, // 左下
-    1.0, 1.0, // 右下
-  ];
-  var gls = new _GLSprite(-1, false);
-  gls.setCoord(positions);
-  gls.setMap(textureCoordinates, true);
   gls.draw(null, -1, false);
 } else {
   // 画面全体を覆う板ポリゴンの構築
-  const positions = [
-    -1.0,  1.0, 0.0, // 左上
-     1.0,  1.0, 0.0, // 右上
-    -1.0, -1.0, 0.0, // 左下
-     1.0, -1.0, 0.0, // 右下
-  ];
-  var positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
   gl.vertexAttribPointer(aVertexPositionMirror, 3, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(aVertexPositionMirror);
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  const textureCoordinates = [
-    0.0, 0.0, // 左上
-    1.0, 0.0, // 右上
-    0.0, 1.0, // 左下
-    1.0, 1.0, // 右下
-  ];
-  var textureCoordBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
   gl.vertexAttribPointer(aTextureCoordMirror, 2, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(aTextureCoordMirror);
   gl.bindBuffer(gl.ARRAY_BUFFER, null);

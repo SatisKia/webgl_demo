@@ -15,6 +15,8 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
+var useShadowOrtho = false;
+var shadowOrthoTop = 5.0; // useShadowOrthoがtrueの時のみ参照される
 var useTextureFloat = false;
 var useHighPrecision = true; // useTextureFloatがfalseの時のみ参照される
 
@@ -91,13 +93,21 @@ function mySetLightPos(gl) {
   transLightY = glu.transY();
   transLightZ = glu.transZ();
 
-  // 光源視点でのプロジェクション行列（perspectiveを使用。frustum時と描画結果は同じ）
-  var fieldOfView = 60.0; // 視野角（度）
-  var aspect = shadowFrameBufferWidth / shadowFrameBufferHeight; // 幅と高さの比率はフレームバッファのサイズに合わせる
+  // 光源視点でのプロジェクション行列
   var zNear = 0.1; // 表示するオブジェクトの範囲（手前）
   var zFar = 100.0; // 表示するオブジェクトの範囲（奥）
   glu.setIdentity();
-  glu.perspective(fieldOfView, aspect, zNear, zFar);
+  if (useShadowOrtho) {
+    var t = shadowOrthoTop;
+    var b = -t;
+    var r = t * (shadowFrameBufferWidth / shadowFrameBufferHeight);
+    var l = -r;
+    glu.ortho(l, r, b, t, zNear, zFar);
+  } else {
+    var fieldOfView = 60.0; // 視野角（度）
+    var aspect = shadowFrameBufferWidth / shadowFrameBufferHeight; // 幅と高さの比率はフレームバッファのサイズに合わせる
+    glu.perspective(fieldOfView, aspect, zNear, zFar);
+  }
   var depthProjMatrix = glu.glMatrix();
 
   // 光源視点でのビュー行列
