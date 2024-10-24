@@ -14,12 +14,6 @@ window.onresize = d2js_onresize;
 
 var useFog = true;
 
-var useStereo = false;
-var canvasWidth = 1024;
-var stereoAngle = 1.5;
-
-var stereo;
-
 var img_loading = false;
 var image_array = new Array(1);
 var glt;
@@ -29,7 +23,6 @@ var shader;
 //---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aTextureCoord;
-var uProjectionMatrix;
 var uModelViewMatrix;
 //---- シェーダープログラムの変数ここまで ----
 
@@ -38,11 +31,37 @@ var gls;
 // カメラの回転
 var angle = 0.0;
 
+// fpsの計測
+var _old_time;
+var _total_time;
+var _total_frame_count;
+var _total_paint_count;
+function myStartCalcFps() {
+  _old_time = currentTimeMillis();
+  _total_time = 0;
+  _total_frame_count = 0;
+  _total_paint_count = 0;
+  resetFrameCount();
+}
+function myCalcFps() {
+  var tmp = currentTimeMillis();
+  var time = tmp - _old_time;
+  _old_time = tmp;
+  _total_time += time;
+  _total_frame_count += frameCount();
+  _total_paint_count++;
+  var fps = 1000 / (_total_time / _total_frame_count); // 1秒間あたりのゲーム計算処理回数
+  fps /= (_total_frame_count / _total_paint_count); // 1秒間あたりの描画処理回数
+  return fps;
+}
+
 function frameTime() {
   return 1000 / 30/*フレーム*/;
 }
 
 function init() {
+  window._USE_SKIPFRAME = true;
+  window._MAX_FRAMECOUNT = 4;
 }
 
 function start() {
@@ -62,13 +81,6 @@ function paint(g) {
 }
 
 function init3D(gl, glu) {
-  if (useStereo) {
-    setCanvasSize(canvasWidth, getHeight());
-    setCanvas3DSize(canvasWidth, getHeight());
-
-    stereo = new _GLStereo(0.0, 0.0, getWidth(), getHeight());
-  }
-
   glt = new _GLTexture(image_array, 1);
 
   var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
@@ -131,7 +143,7 @@ function init3D(gl, glu) {
   aVertexPosition = shader.attrib("aVertexPosition");
   aTextureCoord = shader.attrib("aTextureCoord");
 
-  uProjectionMatrix = shader.uniform("uProjectionMatrix");
+  var uProjectionMatrix = shader.uniform("uProjectionMatrix");
   uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
   var uSampler = shader.uniform("uSampler");
@@ -142,11 +154,7 @@ function init3D(gl, glu) {
   var uFogFar = shader.uniform("uFogFar");
   //---- シェーダープログラムの変数ここまで ----
 
-  if (useStereo) {
-    stereo.setProjectionMatrix(projectionMatrix);
-  } else {
-    gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-  }
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
 
   gl.uniform1i(uSampler, 0);
 
@@ -173,6 +181,8 @@ function init3D(gl, glu) {
 }
 
 function init2D(g) {
+  // fpsの計測
+  myStartCalcFps();
 }
 
 function clear2D(g) {
@@ -181,15 +191,6 @@ function clear2D(g) {
 }
 
 function paint3D(gl, glu) {
-  myLookAt(glu, 0.0);
-
-  if (useStereo) {
-    stereo.draw();
-  } else {
-    myDraw(gl);
-  }
-}
-function myLookAt(glu, add) {
   var camera_x = 0.0;
   var camera_y = 3.0;
   var camera_z = 6.0;
@@ -198,20 +199,17 @@ function myLookAt(glu, add) {
   var look_z = 0.0;
 
   // カメラの回転
+for (var i = 0; i < frameCount(); i++) {
   angle += 0.01;
-  var rot_x = camera_x * Math.cos(angle + add) - camera_z * Math.sin(angle + add);
-  var rot_z = camera_z * Math.cos(angle + add) + camera_x * Math.sin(angle + add);
+}
+  var rot_x = camera_x * Math.cos(angle) - camera_z * Math.sin(angle);
+  var rot_z = camera_z * Math.cos(angle) + camera_x * Math.sin(angle);
 
   glu.lookAt(rot_x, camera_y, rot_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
-}
-function myDraw(gl) {
+
   gl.clearColor(0.0, 0.0, 1.0, 1.0);
   gl.clearDepth(1.0);
-  if (useStereo) {
-    stereo.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  } else {
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  }
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
@@ -220,12 +218,6 @@ function myDraw(gl) {
   gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 
   gl.depthMask(false);
-
-  // 描画領域を伝える
-  if (useStereo) {
-    stereo.viewport();
-  }
-
   var gld = new _GLDraw(null);
   for (var z = -10; z <= 10; z += 2) {
     for (var x = -10; x <= 10; x += 2) {
@@ -236,6 +228,13 @@ function myDraw(gl) {
 }
 
 function paint2D(g) {
+  // fpsの計測
+  var fps = myCalcFps();
+
+  g.setFont(24, "ＭＳ ゴシック");
+  g.setColor(g.getColorOfRGB(255, 0, 255));
+  g.drawString("" + _INT(fps) + " fps", 0, 24);
+  g.drawString("" + frameCount(), 0, 48);
 }
 
 // _GLTexture用
@@ -276,22 +275,6 @@ function glDrawSetProjectionMatrix(gl, mat, p, index) {
 }
 function glDrawSetModelViewMatrix(gl, mat) {
   gl.uniformMatrix4fv(uModelViewMatrix, false, mat);
-}
-
-// _GLStereo用
-function glStereoSetProjectionMatrix(gl, mat) {
-  gl.uniformMatrix4fv(uProjectionMatrix, false, mat);
-}
-function glStereoSetViewMatrix(gl, mat) {
-}
-function glStereoDraw(gl, glu, leftFlag) {
-  if (leftFlag) {
-    myLookAt(glu, stereoAngle);
-  } else {
-    myLookAt(glu, -stereoAngle);
-  }
-
-  myDraw(gl);
 }
 
 function processEvent(type, param) {
