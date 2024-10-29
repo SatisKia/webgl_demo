@@ -16,7 +16,7 @@ var useFog = true;
 
 var useStereo = false;
 var canvasWidth = 1024;
-var stereoAngle = 1.5;
+var stereoAngle = 3.0;
 
 var stereo;
 
@@ -203,6 +203,9 @@ function myLookAt(glu, add) {
   var rot_z = camera_z * Math.cos(angle + add) + camera_x * Math.sin(angle + add);
 
   glu.lookAt(rot_x, camera_y, rot_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+  if (useStereo) {
+    stereo.setViewMatrix(glu.glMatrix(), stereoAngle);
+  }
 }
 function myDraw(gl) {
   gl.clearColor(0.0, 0.0, 1.0, 1.0);
@@ -285,12 +288,6 @@ function glStereoSetProjectionMatrix(gl, mat) {
 function glStereoSetViewMatrix(gl, mat) {
 }
 function glStereoDraw(gl, glu, leftFlag) {
-  if (leftFlag) {
-    myLookAt(glu, stereoAngle);
-  } else {
-    myLookAt(glu, -stereoAngle);
-  }
-
   myDraw(gl);
 }
 
