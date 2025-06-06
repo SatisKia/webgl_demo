@@ -345,8 +345,8 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        vec4 color = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
-        float z = (color.r + color.g + color.b + color.a) / 4.0;
+        vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
+        float z = (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -410,8 +410,8 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        vec4 color = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
-        float z = (color.r + color.g + color.b + color.a) / 4.0;
+        vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
+        float z = (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -856,7 +856,6 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
 
   if (shadowFlag) {
     gl.uniformMatrix4fv(uModelMatrixShadowmap, false, modelMatrix);
-
     gl.uniform1i(uMirrorShadowmap, mirrorFlag);
   } else {
     var i = (p.id() == 0) ? 1 : 0;

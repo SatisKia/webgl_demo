@@ -30,6 +30,8 @@ var shadowFrameBufferWidth = 1024 * 4; // 2の累乗
 var shadowFrameBufferHeight = 512 * 4; // 2の累乗
 var shadowFrameBuffer;
 
+var shadowBlur = 0.0;
+
 var shadowmapShader;
 //---- シェーダープログラムの変数ここから ----
 var aVertexPositionShadowmap;
@@ -56,6 +58,9 @@ var uSamplerShadowmap = new Array(2);
 var uSampler;
 var uHighPrecision = new Array(2);
 var uTextureFloat = new Array(2);
+var uShadowBlur = new Array(2);
+var uOffsetX = new Array(2);
+var uOffsetY = new Array(2);
 //---- シェーダープログラムの変数ここまで ----
 
 var model = new Array(4);
@@ -270,15 +275,20 @@ function init3D(gl, _glu) {
 
     void main(void) {
       float z = gl_FragCoord.z;
-      if (!bool(uHighPrecision) || bool(uTextureFloat)) {
-        gl_FragColor = vec4(z, 0.0, 0.0, 1.0);
-      } else {
-        float r = clamp((z - 0.75) * 4.0, 0.0, 1.0);
-        float g = clamp((z - 0.5 ) * 4.0, 0.0, 1.0);
-        float b = clamp((z - 0.25) * 4.0, 0.0, 1.0);
-        float a = clamp((z - 0.0 ) * 4.0, 0.0, 1.0);
-        gl_FragColor = vec4(r, g, b, a);
-      }
+      //if (!bool(uHighPrecision) || bool(uTextureFloat)) {
+      //  gl_FragColor = vec4(z, 0.0, 0.0, 1.0);
+      //} else {
+      //  gl_FragColor = vec4(
+      //    clamp((z - 0.75) * 4.0, 0.0, 1.0),
+      //    clamp((z - 0.5 ) * 4.0, 0.0, 1.0),
+      //    clamp((z - 0.25) * 4.0, 0.0, 1.0),
+      //    clamp((z - 0.0 ) * 4.0, 0.0, 1.0));
+      //}
+      gl_FragColor = (!bool(uHighPrecision) || bool(uTextureFloat)) ? vec4(z, 0.0, 0.0, 1.0) : vec4(
+        clamp((z - 0.75) * 4.0, 0.0, 1.0),
+        clamp((z - 0.5 ) * 4.0, 0.0, 1.0),
+        clamp((z - 0.25) * 4.0, 0.0, 1.0),
+        clamp((z - 0.0 ) * 4.0, 0.0, 1.0));
     }
   `;
   shadowmapShader = new _GLShader(vsSourceShadowmap, fsSourceShadowmap);
@@ -316,6 +326,7 @@ function init3D(gl, _glu) {
     }
   `;
   const fsSourceScene = `
+    precision mediump int;
     precision mediump float;
 
     uniform mat4 uInvModelMatrix;
@@ -324,6 +335,9 @@ function init3D(gl, _glu) {
     uniform sampler2D uSamplerShadowmap;
     uniform int uHighPrecision;
     uniform int uTextureFloat;
+    uniform float uShadowBlur;
+    uniform float uOffsetX[9];
+    uniform float uOffsetY[9];
 
     varying vec3 vPosition;
     varying vec3 vNormal;
@@ -340,15 +354,42 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        float z;
-        if (!bool(uHighPrecision) || bool(uTextureFloat)) {
-          z = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap).r;
+        if (uShadowBlur == 0.0) {
+          vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
+          float z;
+          //if (!bool(uHighPrecision) || bool(uTextureFloat)) {
+          //  z = shadowmapColor.r;
+          //} else {
+          //  z = (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
+          //}
+          z = (!bool(uHighPrecision) || bool(uTextureFloat)) ? shadowmapColor.r : (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
+          if (lightCoord.z > z + uTolerance) {
+            depthColor = vec4(0.5, 0.5, 0.5, 1.0);
+          }
         } else {
-          vec4 color = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
-          z = (color.r + color.g + color.b + color.a) / 4.0;
-        }
-        if (lightCoord.z > z + uTolerance) {
-          depthColor = vec4(0.5, 0.5, 0.5, 1.0);
+          //float dx = (1.0 / 640.0) * 5.0;
+          //float dy = (1.0 / 480.0) * 5.0;
+          //float offsetX[9];
+          //offsetX[0] = -dx; offsetX[1] = 0.0; offsetX[2] =  dx;
+          //offsetX[3] = -dx; offsetX[4] = 0.0; offsetX[5] =  dx;
+          //offsetX[6] = -dx; offsetX[7] = 0.0; offsetX[8] =  dx;
+          //float offsetY[9];
+          //offsetY[0] = -dy; offsetY[1] = -dy; offsetY[2] = -dy;
+          //offsetY[3] = 0.0; offsetY[4] = 0.0; offsetY[5] = 0.0;
+          //offsetY[6] =  dy; offsetY[7] =  dy; offsetY[8] =  dy;
+          float count = 0.0;
+          for (int i = 0; i < 9; i++) {
+            vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap + vec4(uOffsetX[i], uOffsetY[i], 0.0, 0.0));
+            float z = (!bool(uHighPrecision) || bool(uTextureFloat)) ? shadowmapColor.r : (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
+            if (lightCoord.z > z + uTolerance) {
+              count += 1.0;
+            }
+          }
+          if (count > 0.0) {
+            float density = 0.5; // 影の濃さ：0.0～1.0
+            density = 1.0 - (count / 9.0) * density;
+            depthColor = vec4(density, density, density, 1.0);
+          }
         }
       }
       gl_FragColor = vColor * vec4(vec3(diffuse), 1.0) * depthColor;
@@ -380,6 +421,7 @@ function init3D(gl, _glu) {
     }
   `;
   const fsSourceSceneTexture = `
+    precision mediump int;
     precision mediump float;
 
     uniform mat4 uInvModelMatrix;
@@ -389,6 +431,9 @@ function init3D(gl, _glu) {
     uniform sampler2D uSampler;
     uniform int uHighPrecision;
     uniform int uTextureFloat;
+    uniform float uShadowBlur;
+    uniform float uOffsetX[9];
+    uniform float uOffsetY[9];
 
     varying vec3 vPosition;
     varying vec3 vNormal;
@@ -405,15 +450,42 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        float z;
-        if (!bool(uHighPrecision) || bool(uTextureFloat)) {
-          z = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap).r;
+        if (uShadowBlur == 0.0) {
+          vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
+          float z;
+          //if (!bool(uHighPrecision) || bool(uTextureFloat)) {
+          //  z = shadowmapColor.r;
+          //} else {
+          //  z = (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
+          //}
+          z = (!bool(uHighPrecision) || bool(uTextureFloat)) ? shadowmapColor.r : (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
+          if (lightCoord.z > z + uTolerance) {
+            depthColor = vec4(0.5, 0.5, 0.5, 1.0);
+          }
         } else {
-          vec4 color = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
-          z = (color.r + color.g + color.b + color.a) / 4.0;
-        }
-        if (lightCoord.z > z + uTolerance) {
-          depthColor = vec4(0.5, 0.5, 0.5, 1.0);
+          //float dx = (1.0 / 640.0) * 5.0;
+          //float dy = (1.0 / 480.0) * 5.0;
+          //float offsetX[9];
+          //offsetX[0] = -dx; offsetX[1] = 0.0; offsetX[2] =  dx;
+          //offsetX[3] = -dx; offsetX[4] = 0.0; offsetX[5] =  dx;
+          //offsetX[6] = -dx; offsetX[7] = 0.0; offsetX[8] =  dx;
+          //float offsetY[9];
+          //offsetY[0] = -dy; offsetY[1] = -dy; offsetY[2] = -dy;
+          //offsetY[3] = 0.0; offsetY[4] = 0.0; offsetY[5] = 0.0;
+          //offsetY[6] =  dy; offsetY[7] =  dy; offsetY[8] =  dy;
+          float count = 0.0;
+          for (int i = 0; i < 9; i++) {
+            vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap + vec4(uOffsetX[i], uOffsetY[i], 0.0, 0.0));
+            float z = (!bool(uHighPrecision) || bool(uTextureFloat)) ? shadowmapColor.r : (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
+            if (lightCoord.z > z + uTolerance) {
+              count += 1.0;
+            }
+          }
+          if (count > 0.0) {
+            float density = 0.5; // 影の濃さ：0.0～1.0
+            density = 1.0 - (count / 9.0) * density;
+            depthColor = vec4(density, density, density, 1.0);
+          }
         }
       }
       highp vec4 color = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
@@ -445,6 +517,9 @@ function init3D(gl, _glu) {
     }
     uHighPrecision[i] = sceneShader[i].uniform("uHighPrecision");
     uTextureFloat[i] = sceneShader[i].uniform("uTextureFloat");
+    uShadowBlur[i] = sceneShader[i].uniform("uShadowBlur");
+    uOffsetX[i] = sceneShader[i].uniform("uOffsetX");
+    uOffsetY[i] = sceneShader[i].uniform("uOffsetY");
   }
   //---- シェーダープログラムの変数ここまで ----
 
@@ -490,6 +565,22 @@ function init3D(gl, _glu) {
     }
     gl.uniform1i(uHighPrecision[i], useHighPrecision);
     gl.uniform1i(uTextureFloat[i], shadowFrameBuffer.textureFloat);
+
+    gl.uniform1f(uShadowBlur[i], shadowBlur);
+    var dx = (1.0 / getWidth ()) * shadowBlur;
+    var dy = (1.0 / getHeight()) * shadowBlur;
+    var offsetX = [
+      -dx, 0.0,  dx,
+      -dx, 0.0,  dx,
+      -dx, 0.0,  dx,
+    ];
+    var offsetY = [
+      -dy, -dy, -dy,
+      0.0, 0.0, 0.0,
+       dy,  dy,  dy,
+    ];
+    gl.uniform1fv(uOffsetX[i], offsetX);
+    gl.uniform1fv(uOffsetY[i], offsetY);
   }
 
   mySetLightPos(gl);

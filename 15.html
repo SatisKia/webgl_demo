@@ -393,8 +393,8 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        vec4 color = texture2DProj(uSamplerShadowmap, textureCoordShadowmap);
-        float z = (color.r + color.g + color.b + color.a) / 4.0;
+        vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, textureCoordShadowmap);
+        float z = (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -473,8 +473,8 @@ function init3D(gl, _glu) {
       if (vDepth.w > 0.0) {
         vec4 lightCoord = vDepth / vDepth.w;
         lightCoord = lightCoord * 0.5 + 0.5; // -1.0～1.0の値を0.0～1.0の値に変換
-        vec4 color = texture2DProj(uSamplerShadowmap, textureCoordShadowmap);
-        float z = (color.r + color.g + color.b + color.a) / 4.0;
+        vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, textureCoordShadowmap);
+        float z = (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
         if (lightCoord.z > z + uTolerance) {
           depthColor = vec4(0.5, 0.5, 0.5, 1.0);
         }
@@ -595,20 +595,20 @@ function init3D(gl, _glu) {
     0.0, 1.0, // 左下
     1.0, 1.0, // 右下
   ];
-if (useGLSprite) {
-  gls = new _GLSprite(-1, false);
-  gls.setCoord(positions);
-  gls.setMap(textureCoordinates, true);
-} else {
-  positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  textureCoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-}
+  if (useGLSprite) {
+    gls = new _GLSprite(-1, false);
+    gls.setCoord(positions);
+    gls.setMap(textureCoordinates, true);
+  } else {
+    positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    textureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  }
 
   // プロジェクション行列
   var fieldOfView = 45.0; // 視野角（度）
@@ -842,26 +842,26 @@ function myDrawTexture(gl) {
   gl.stencilFunc(gl.EQUAL, 1, ~0);
   gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
 
-if (useGLSprite) {
-  gls.draw(null, -1, false);
-} else {
-  // 画面全体を覆う板ポリゴンの構築
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.vertexAttribPointer(aVertexPositionMirror, 3, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aVertexPositionMirror);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-  gl.vertexAttribPointer(aTextureCoordMirror, 2, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(aTextureCoordMirror);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  if (useGLSprite) {
+    gls.draw(null, -1, false);
+  } else {
+    // 画面全体を覆う板ポリゴンの構築
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(aVertexPositionMirror, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aVertexPositionMirror);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+    gl.vertexAttribPointer(aTextureCoordMirror, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aTextureCoordMirror);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-  // テクスチャの設定
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, mirrorFrameBuffer.colorBuffer);
+    // テクスチャの設定
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, mirrorFrameBuffer.colorBuffer);
 
-  // 描画
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-}
+    // 描画
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
 }
 
 function paint2D(g) {
