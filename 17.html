@@ -12,47 +12,92 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
-var useFog = true;
+var useFog = false;
+var useDepth = true;
+var useStereo = false;
+
+var canvasWidth = 1024;
+var stereoAngle = 3.0;
+var stereo;
 
 var img_loading = false;
 var image_array = new Array(1);
 var glt;
 
-var shader;
+var frameBufferWidth = 1024; // 2の累乗
+var frameBufferHeight = 512; // 2の累乗
+var frameBuffer;
 
+var shader;
+var depthShader;
 //---- シェーダープログラムの変数ここから ----
 var aVertexPosition;
 var aTextureCoord;
+var uProjectionMatrix;
 var uModelViewMatrix;
+var aVertexPositionDepth;
+var aTextureCoordDepth;
+var uProjectionMatrixDepth;
+var uModelViewMatrixDepth;
+//---- シェーダープログラムの変数ここまで ----
+var depthFlag = false;
+
+var bufferShader;
+//---- シェーダープログラムの変数ここから ----
+var aVertexPositionBuffer;
+var aTextureCoordBuffer;
+var uOrthoMatrixBuffer;
 //---- シェーダープログラムの変数ここまで ----
 
 var gls;
 
+// 画面全体を覆う板ポリゴン用
+var positionBuffer;
+var textureCoordBuffer;
+
 // カメラの回転
 var angle = 0.0;
 
-// fpsの計測
-var _old_time;
-var _total_time;
-var _total_frame_count;
-var _total_paint_count;
-function myStartCalcFps() {
-  _old_time = currentTimeMillis();
-  _total_time = 0;
-  _total_frame_count = 0;
-  _total_paint_count = 0;
-  resetFrameCount();
-}
-function myCalcFps() {
-  var tmp = currentTimeMillis();
-  var time = tmp - _old_time;
-  _old_time = tmp;
-  _total_time += time;
-  _total_frame_count += frameCount();
-  _total_paint_count++;
-  var fps = 1000 / (_total_time / _total_frame_count); // 1秒間あたりのゲーム計算処理回数
-  fps /= (_total_frame_count / _total_paint_count); // 1秒間あたりの描画処理回数
-  return fps;
+function myCreateFrameBufferObject(gl, width, height) {
+  // フレームバッファ
+  var frameBuffer = gl.createFramebuffer();
+
+  // 色用テクスチャ
+  var colorTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, colorTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  // 深度用テクスチャ
+  var depthTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, depthTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  // 深度バッファ
+  var depthBuffer = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  frameBuffer.colorTexture = colorTexture;
+  frameBuffer.depthTexture = depthTexture;
+  frameBuffer.depthBuffer = depthBuffer;
+  frameBuffer.width = width;
+  frameBuffer.height = height;
+  return frameBuffer;
 }
 
 function frameTime() {
@@ -60,8 +105,6 @@ function frameTime() {
 }
 
 function init() {
-  window._USE_SKIPFRAME = true;
-  window._MAX_FRAMECOUNT = 4;
 }
 
 function start() {
@@ -81,7 +124,19 @@ function paint(g) {
 }
 
 function init3D(gl, glu) {
+  if (useStereo) {
+    setCanvasSize(canvasWidth, getHeight());
+    setCanvas3DSize(canvasWidth, getHeight());
+
+    stereo = new _GLStereo(0.0, 0.0, getWidth(), getHeight());
+  }
+
   glt = new _GLTexture(image_array, 1);
+
+  if (useDepth) {
+    // バッファの構築
+    frameBuffer = myCreateFrameBufferObject(gl, frameBufferWidth, frameBufferHeight);
+  }
 
   var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
   var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
@@ -138,13 +193,12 @@ function init3D(gl, glu) {
     }
   `;
   shader = new _GLShader(vsSource, fsSource);
-  shader.use();
 
   //---- シェーダープログラムの変数ここから ----
   aVertexPosition = shader.attrib("aVertexPosition");
   aTextureCoord = shader.attrib("aTextureCoord");
 
-  var uProjectionMatrix = shader.uniform("uProjectionMatrix");
+  uProjectionMatrix = shader.uniform("uProjectionMatrix");
   uModelViewMatrix = shader.uniform("uModelViewMatrix");
 
   var uSampler = shader.uniform("uSampler");
@@ -155,14 +209,109 @@ function init3D(gl, glu) {
   var uFogFar = shader.uniform("uFogFar");
   //---- シェーダープログラムの変数ここまで ----
 
-  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+  if (useDepth) {
+    var fsSourceDepth = `
+      precision mediump float;
 
+      uniform float uFogFar;
+
+      varying float vFogDepth;
+
+      void main(void) {
+        float depth = clamp(vFogDepth / uFogFar, 0.0, 1.0);
+        gl_FragColor = vec4(depth, depth, depth, 1.0);
+      }
+    `;
+    depthShader = new _GLShader(vsSource, fsSourceDepth);
+
+    //---- シェーダープログラムの変数ここから ----
+    aVertexPositionDepth = depthShader.attrib("aVertexPosition");
+    aTextureCoordDepth = depthShader.attrib("aTextureCoord");
+
+    uProjectionMatrixDepth = depthShader.uniform("uProjectionMatrix");
+    uModelViewMatrixDepth = depthShader.uniform("uModelViewMatrix");
+
+    var uFogFarDepth = depthShader.uniform("uFogFar");
+    //---- シェーダープログラムの変数ここまで ----
+
+    var vsSourceBuffer = `
+      attribute vec3 aVertexPosition;
+      attribute vec2 aTextureCoord;
+
+      uniform mat4 uOrthoMatrix;
+
+      varying vec2 vTextureCoord;
+
+      void main(void) {
+        gl_Position = uOrthoMatrix * vec4(aVertexPosition, 1.0);
+
+        vTextureCoord = aTextureCoord;
+      }
+    `;
+    var fsSourceBuffer = `
+      precision mediump float;
+
+      uniform sampler2D uColorSampler;
+      uniform sampler2D uDepthSampler;
+
+      varying vec2 vTextureCoord;
+
+      void main(void) {
+        float depth = texture2D(uDepthSampler, vTextureCoord).r;
+        float amount = smoothstep(0.2, 1.0, depth) * 0.005;
+        vec4 color = vec4(0.0);
+        float total = 0.0;
+        for (int dx = -1; dx <= 1; dx++) {
+          for (int dy = -1; dy <= 1; dy++) {
+            float weight = 1.0;
+            vec2 offset = vec2(float(dx), float(dy)) * amount;
+            color += texture2D(uColorSampler, vTextureCoord + offset) * weight;
+            total += weight;
+          }
+        }
+        color /= total;
+        gl_FragColor = vec4(color.rgb, 1.0);
+      }
+    `;
+    bufferShader = new _GLShader(vsSourceBuffer, fsSourceBuffer);
+
+    //---- シェーダープログラムの変数ここから ----
+    aVertexPositionBuffer = bufferShader.attrib('aVertexPosition');
+    aTextureCoordBuffer = bufferShader.attrib('aTextureCoord');
+
+    uOrthoMatrixBuffer = bufferShader.uniform('uOrthoMatrix');
+
+    var uColorSamplerBuffer = bufferShader.uniform('uColorSampler');
+    var uDepthSamplerBuffer = bufferShader.uniform('uDepthSampler');
+    //---- シェーダープログラムの変数ここまで ----
+  }
+
+  if (useStereo) {
+    stereo.setProjectionMatrix(projectionMatrix);
+  } else {
+    shader.use();
+    gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+    if (useDepth) {
+      depthShader.use();
+      gl.uniformMatrix4fv(uProjectionMatrixDepth, false, projectionMatrix);
+    }
+  }
+
+  shader.use();
   gl.uniform1i(uSampler, 0);
-
   gl.uniform1i(uFog, useFog);
   gl.uniform3fv(uFogColor, [0.0, 0.0, 1.0]);
   gl.uniform1f(uFogNear, 5.0);
   gl.uniform1f(uFogFar, 20.0);
+
+  if (useDepth) {
+    depthShader.use();
+    gl.uniform1f(uFogFarDepth, 20.0);
+
+    bufferShader.use();
+    gl.uniform1i(uColorSamplerBuffer, 0);
+    gl.uniform1i(uDepthSamplerBuffer, 1);
+  }
 
   var coord = new Array(12);
   coord[ 0] = -0.5; coord[ 1] = -0.5; coord[ 2] = 0.0;
@@ -178,12 +327,34 @@ function init3D(gl, glu) {
   gls.setCoord(coord);
   gls.setMap(map);
 
+  if (useDepth) {
+    // 画面全体を覆う板ポリゴンのデータ
+    const positions = [
+      -1.0,  1.0, 0.0, // 左上
+       1.0,  1.0, 0.0, // 右上
+      -1.0, -1.0, 0.0, // 左下
+       1.0, -1.0, 0.0, // 右下
+    ];
+    const textureCoordinates = [
+      0.0, 0.0, // 左上
+      1.0, 0.0, // 右上
+      0.0, 1.0, // 左下
+      1.0, 1.0, // 右下
+    ];
+    positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    textureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  }
+
   return true;
 }
 
 function init2D(g) {
-  // fpsの計測
-  myStartCalcFps();
 }
 
 function clear2D(g) {
@@ -192,6 +363,50 @@ function clear2D(g) {
 }
 
 function paint3D(gl, glu) {
+  myLookAt(glu, 0.0);
+
+  if (useStereo) {
+    stereo.draw();
+  } else {
+    myDraw(gl, glu);
+  }
+
+  if (useDepth) {
+    // 描画領域を伝える
+    glu.viewport(0.0, 0.0, getWidth(), getHeight());
+
+    // プログラムオブジェクトの選択
+    bufferShader.use();
+
+    // 正射影用の座標変換行列
+    glu.lookAt(0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    var tmpMatrix = glu.glMatrix();
+    glu.setIdentity();
+    glu.ortho(-1.0, 1.0, 1.0, -1.0, 0.1, 1.0);
+    glu.multiply(glu.utMatrix(tmpMatrix));
+    gl.uniformMatrix4fv(uOrthoMatrixBuffer, false, glu.glMatrix());
+
+    // 画面全体を覆う板ポリゴンの構築
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(aVertexPositionBuffer, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aVertexPositionBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+    gl.vertexAttribPointer(aTextureCoordBuffer, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aTextureCoordBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    // テクスチャの設定
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, frameBuffer.colorTexture);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, frameBuffer.depthTexture);
+
+    // 描画
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}
+function myLookAt(glu, add) {
   var camera_x = 0.0;
   var camera_y = 3.0;
   var camera_z = 6.0;
@@ -200,42 +415,75 @@ function paint3D(gl, glu) {
   var look_z = 0.0;
 
   // カメラの回転
-for (var i = 0; i < frameCount(); i++) {
   angle += 0.01;
-}
-  var rot_x = camera_x * Math.cos(angle) - camera_z * Math.sin(angle);
-  var rot_z = camera_z * Math.cos(angle) + camera_x * Math.sin(angle);
+  var rot_x = camera_x * Math.cos(angle + add) - camera_z * Math.sin(angle + add);
+  var rot_z = camera_z * Math.cos(angle + add) + camera_x * Math.sin(angle + add);
 
   glu.lookAt(rot_x, camera_y, rot_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+  if (useStereo) {
+    stereo.setViewMatrix(glu.glMatrix(), stereoAngle);
+  }
+}
+function myDraw(gl, glu) {
+  for (var i = 0; i < 2; i++) {
+    if (useDepth) {
+      // フレームバッファをバインド
+      if (i == 0) {
+        depthFlag = false;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frameBuffer.colorTexture, 0);
+        shader.use();
+      } else {
+        depthFlag = true;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frameBuffer.depthTexture, 0);
+        depthShader.use();
+      }
+    }
 
-  gl.clearColor(0.0, 0.0, 1.0, 1.0);
-  gl.clearDepth(1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clearColor(0.0, 0.0, 1.0, 1.0);
+    gl.clearDepth(1.0);
+    if (useStereo) {
+      stereo.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    } else {
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
 
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
 
-  gl.enable(gl.BLEND);
-  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+    gl.enable(gl.BLEND);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 
-  gl.depthMask(false);
-  var gld = new _GLDraw(null);
-  for (var z = -10; z <= 10; z += 2) {
-    for (var x = -10; x <= 10; x += 2) {
-      gld.addSprite(gls, 0, x, 0.0, z, -1);
+    gl.depthMask(false);
+
+    // 描画領域を伝える
+    if (useStereo) {
+      stereo.viewport();
+    } else {
+      if (useDepth) {
+        glu.viewport(0.0, 0.0, frameBufferWidth, frameBufferHeight);
+      }
+    }
+
+    var gld = new _GLDraw(null);
+    for (var z = -10; z <= 10; z += 2) {
+      for (var x = -10; x <= 10; x += 2) {
+        gld.addSprite(gls, 0, x, 0.0, z, -1);
+      }
+    }
+    gld.draw(glt);
+
+    if (useDepth) {
+      // フレームバッファのバインドを解除
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    } else {
+      break;
     }
   }
-  gld.draw(glt);
 }
 
 function paint2D(g) {
-  // fpsの計測
-  var fps = myCalcFps();
-
-  g.setFont(24, "ＭＳ ゴシック");
-  g.setColor(g.getColorOfRGB(255, 0, 255));
-  g.drawString("" + _INT(fps) + " fps", 0, 24);
-  g.drawString("" + frameCount(), 0, 48);
 }
 
 // _GLTexture用
@@ -260,10 +508,18 @@ function glSpriteActiveTexture(gl, id) {
   return gl.TEXTURE0;
 }
 function glSpriteBindPositionBuffer(gl, id) {
-  _GLShader.bindPositionBuffer(aVertexPosition);
+  if (useDepth && depthFlag) {
+    _GLShader.bindPositionBuffer(aVertexPositionDepth);
+  } else {
+    _GLShader.bindPositionBuffer(aVertexPosition);
+  }
 }
 function glSpriteBindTextureCoordBuffer(gl, id) {
-  _GLShader.bindTextureCoordBuffer(aTextureCoord);
+  if (useDepth && depthFlag) {
+    _GLShader.bindTextureCoordBuffer(aTextureCoordDepth);
+  } else {
+    _GLShader.bindTextureCoordBuffer(aTextureCoord);
+  }
 }
 function glSpriteSetTexture(gl, glt, tex_index, id) {
   return false;
@@ -271,11 +527,35 @@ function glSpriteSetTexture(gl, glt, tex_index, id) {
 
 // _GLDraw用
 function glDrawUseProgram(gl, p, index) {
+  if (useDepth && depthFlag) {
+    depthShader.use();
+  } else {
+    shader.use();
+  }
 }
 function glDrawSetProjectionMatrix(gl, mat, p, index) {
 }
 function glDrawSetModelViewMatrix(gl, mat) {
-  gl.uniformMatrix4fv(uModelViewMatrix, false, mat);
+  if (useDepth && depthFlag) {
+    gl.uniformMatrix4fv(uModelViewMatrixDepth, false, mat);
+  } else {
+    gl.uniformMatrix4fv(uModelViewMatrix, false, mat);
+  }
+}
+
+// _GLStereo用
+function glStereoSetProjectionMatrix(gl, mat) {
+  shader.use();
+  gl.uniformMatrix4fv(uProjectionMatrix, false, mat);
+  if (useDepth) {
+    depthShader.use();
+    gl.uniformMatrix4fv(uProjectionMatrixDepth, false, mat);
+  }
+}
+function glStereoSetViewMatrix(gl, mat) {
+}
+function glStereoDraw(gl, glu, leftFlag) {
+  myDraw(gl, glu);
 }
 
 function processEvent(type, param) {

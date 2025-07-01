@@ -3,17 +3,27 @@
 <head>
 <meta charset="utf-8" />
 <title></title>
+
+<script type="text/javascript" src="Strip1.js"></script>
+<!--
+<script type="text/javascript" src="Strip2.js"></script>
+<script type="text/javascript" src="Strip3.js"></script>
+-->
+
 <script type="text/javascript" src="d2js.js"></script>
 <script type="text/javascript" src="d2js_gl.js"></script>
-<script type="text/javascript" src="model_witch.js"></script>
+<script type="text/javascript" src="model_witch2.js"></script>
 <script type="text/javascript" src="model_cat.js"></script>
 <script type="text/javascript" src="model_swan.js"></script>
 <script type="text/javascript" src="model_ground.js"></script>
+<script type="text/javascript" src="texture_witch.js"></script>
 <script type="text/javascript">
 
 window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
+
+var enableCullFace = true;
 
 var useShadowOrtho = false;
 var shadowOrthoTop = 5.0; // useShadowOrthoがtrueの時のみ参照される
@@ -606,7 +616,9 @@ function paint3D(gl, glu) {
   if ((key & keyBit(window._KEY_X    )) != 0) { lightZ -= 0.1; }
   mySetLightPos(gl);
 
-  gl.enable(gl.CULL_FACE); // 裏面を表示しない
+  if (enableCullFace) {
+    gl.enable(gl.CULL_FACE); // 裏面を表示しない
+  }
 
   gl.enable(gl.DEPTH_TEST); // 深度テストを有効化
   gl.depthFunc(gl.LEQUAL); // 奥にあるものは隠れるようにする

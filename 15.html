@@ -9,6 +9,9 @@
 <script type="text/javascript" src="model_cat.js"></script>
 <script type="text/javascript" src="model_swan.js"></script>
 <script type="text/javascript" src="model_ground.js"></script>
+<script type="text/javascript" src="model_mesh.js"></script>
+<script type="text/javascript" src="texture_witch.js"></script>
+<script type="text/javascript" src="texture_mesh.js"></script>
 <script type="text/javascript">
 
 window.onload = d2js_onload;
@@ -18,11 +21,18 @@ window.onresize = d2js_onresize;
 var useGLSprite = true;
 var gls; // useGLSpriteがtrueの時に使用
 
+var dispModel = true;
+var dispMesh = false;
+var waveType = 0; // 0～2
+var visualize = false;
+
 var useStereo = false;
 var canvasWidth = 1024;
 var useStereoTrans = false;
 var stereoTrans = 0.2;
 var stereoAngle = 1.5;
+
+img_src.push(img_src_mesh);
 
 var glu;
 
@@ -77,6 +87,7 @@ var uAlphaMirror;
 
 var elapse = 0.0;
 //---- シェーダープログラムの変数ここから ----
+var uWaveType = new Array(2);
 var uFrequencyX = new Array(2);
 var uFrequencyY = new Array(2);
 var uAmplitudeX = new Array(2);
@@ -84,6 +95,11 @@ var uAmplitudeY = new Array(2);
 var uSpeedX = new Array(2);
 var uSpeedY = new Array(2);
 var uElapse = new Array(2);
+var uNoiseScale = new Array(2);
+var uNoiseTimeScale = new Array(2);
+var uNoiseStrength = new Array(2);
+var uNoiseAmplitude = new Array(2);
+var uWaveTypeMirror;
 var uFrequencyXMirror;
 var uFrequencyYMirror;
 var uAmplitudeXMirror;
@@ -91,9 +107,14 @@ var uAmplitudeYMirror;
 var uSpeedXMirror;
 var uSpeedYMirror;
 var uElapseMirror;
+var uNoiseScaleMirror;
+var uNoiseTimeScaleMirror;
+var uNoiseStrengthMirror;
+var uNoiseAmplitudeMirror;
+var uVisualizeMirror;
 //---- シェーダープログラムの変数ここまで ----
 
-var model = new Array(4);
+var model = new Array(5);
 
 // 画面全体を覆う板ポリゴン用（useGLSpriteがfalseの時に使用）
 var positionBuffer;
@@ -281,7 +302,7 @@ function init3D(gl, _glu) {
     stereo = new _GLStereo(0.0, 0.0, getWidth(), getHeight());
   }
 
-  glt = new _GLTexture(image_array, 3);
+  glt = new _GLTexture(image_array, image_array.length);
 
   // バッファの構築
   shadowFrameBuffer = myCreateFrameBufferObject(gl, shadowFrameBufferWidth, shadowFrameBufferHeight);
@@ -356,6 +377,7 @@ function init3D(gl, _glu) {
     }
   `;
   const fsSourceScene = `
+    precision mediump int;
     precision mediump float;
 
     uniform mat4 uInvModelMatrix;
@@ -363,10 +385,15 @@ function init3D(gl, _glu) {
     uniform float uTolerance;
     uniform sampler2D uSamplerShadowmap;
 
+    uniform int uWaveType;
     uniform float uFrequencyX, uFrequencyY; // 波の頻度
     uniform float uAmplitudeX, uAmplitudeY; // 揺れ幅
     uniform float uSpeedX, uSpeedY; // 揺れのスピード
     uniform float uElapse; // 経過時間
+    uniform float uNoiseScale; // ノイズのスケール
+    uniform float uNoiseTimeScale; // 時間の影響度
+    uniform float uNoiseStrength; // ノイズの強さ
+    uniform float uNoiseAmplitude; // 振幅へのノイズの影響度
 
     varying vec3 vPosition;
     varying vec3 vNormal;
@@ -374,19 +401,95 @@ function init3D(gl, _glu) {
     varying vec4 vTextureCoordShadowmap;
     varying vec4 vDepth;
 
+    // 擬似乱数関数
+    float random(vec2 st) {
+      return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+    }
+
+    // パーリンノイズの補間関数
+    float smoothNoise(vec2 st) {
+      vec2 i = floor(st);
+      vec2 f = fract(st);
+
+      // 4つの角のノイズ値を取得
+      float a = random(i);
+      float b = random(i + vec2(1.0, 0.0));
+      float c = random(i + vec2(0.0, 1.0));
+      float d = random(i + vec2(1.0, 1.0));
+
+      // スムーズな補間
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+
+    // 複数オクターブのノイズ
+    float noise(vec2 st, float scale) {
+      float value = 0.0;
+      float amplitude = 1.0;
+      float frequency = 1.0;
+      for(int i = 0; i < 4; i++) {
+        value += amplitude * smoothNoise(st * frequency * scale);
+        amplitude *= 0.5; // 振幅を半分に
+        frequency *= 2.0; // 周波数を2倍に
+      }
+      return value;
+    }
+
+    // 波の生成関数
+    float wave(
+      float x, float y, // 座標
+      float freq, // 波の周波数
+      float amp, // 波の振幅
+      float speed, // 波の速度
+      float time, // 経過時間
+      float dx, float dy // 波の進行方向
+    ) {
+      if (uWaveType == 1) {
+        float wave = sin(x * dx * freq + y * dy * freq + time * speed);
+        return wave * amp;
+      } else {
+        // ノイズを加えた波の生成
+        vec2 noiseCoord = vec2(x * dx * uNoiseScale, y * dy * uNoiseScale + time * uNoiseTimeScale);
+        float noiseValue = noise(noiseCoord, 1.0) * uNoiseStrength;
+
+        float wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
+        return wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
+      }
+    }
+
     void main(void) {
       vec3 light = uLightPosition - vPosition;
       vec3 invLight = normalize(uInvModelMatrix * vec4(light, 0.0)).xyz;
       float diffuse = clamp(dot(vNormal, invLight), 0.2, 1.0);
 
+      // 複数の波を重ね合わせる
       float offsetX = 0.0;
       if (uFrequencyX != 0.0) {
-        offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+        if (uWaveType == 0) {
+          offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+        } else {
+          // 波1：基本的な波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX, uAmplitudeX, uSpeedX, uElapse, 1.0, 0.0);
+          // 波2：斜めの波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX * 0.7, uAmplitudeX * 0.5, uSpeedX * 0.8, uElapse, 0.7, 0.7);
+          // 波3：細かい波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX * 1.5, uAmplitudeX * 0.3, uSpeedX * 1.2, uElapse, 0.3, 0.9);
+        }
       }
       float offsetY = 0.0;
       if (uFrequencyY != 0.0) {
-        offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+        if (uWaveType == 0) {
+          offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+        } else {
+          // 波1：基本的な波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY, uAmplitudeY, uSpeedY, uElapse, 0.0, 1.0);
+          // 波2：斜めの波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY * 0.7, uAmplitudeY * 0.5, uSpeedY * 0.8, uElapse, 0.7, 0.7);
+          // 波3：細かい波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY * 1.5, uAmplitudeY * 0.3, uSpeedY * 1.2, uElapse, 0.3, 0.9);
+        }
       }
+
       vec4 textureCoordShadowmap = vec4(vTextureCoordShadowmap.x + offsetX, vTextureCoordShadowmap.y + offsetY, vTextureCoordShadowmap.z, vTextureCoordShadowmap.w);
 
       vec4 depthColor = vec4(1.0);
@@ -435,6 +538,7 @@ function init3D(gl, _glu) {
     }
   `;
   const fsSourceSceneTexture = `
+    precision mediump int;
     precision mediump float;
 
     uniform mat4 uInvModelMatrix;
@@ -443,10 +547,15 @@ function init3D(gl, _glu) {
     uniform sampler2D uSamplerShadowmap;
     uniform sampler2D uSampler;
 
+    uniform int uWaveType;
     uniform float uFrequencyX, uFrequencyY; // 波の頻度
     uniform float uAmplitudeX, uAmplitudeY; // 揺れ幅
     uniform float uSpeedX, uSpeedY; // 揺れのスピード
     uniform float uElapse; // 経過時間
+    uniform float uNoiseScale; // ノイズのスケール
+    uniform float uNoiseTimeScale; // 時間の影響度
+    uniform float uNoiseStrength; // ノイズの強さ
+    uniform float uNoiseAmplitude; // 振幅へのノイズの影響度
 
     varying vec3 vPosition;
     varying vec3 vNormal;
@@ -454,19 +563,88 @@ function init3D(gl, _glu) {
     varying vec4 vTextureCoordShadowmap;
     varying vec4 vDepth;
 
+    // 擬似乱数関数
+    float random(vec2 st) {
+      return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+    }
+
+    // パーリンノイズの補間関数
+    float smoothNoise(vec2 st) {
+      vec2 i = floor(st);
+      vec2 f = fract(st);
+
+      // 4つの角のノイズ値を取得
+      float a = random(i);
+      float b = random(i + vec2(1.0, 0.0));
+      float c = random(i + vec2(0.0, 1.0));
+      float d = random(i + vec2(1.0, 1.0));
+
+      // スムーズな補間
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+
+    // 複数オクターブのノイズ
+    float noise(vec2 st, float scale) {
+      float value = 0.0;
+      float amplitude = 1.0;
+      float frequency = 1.0;
+      for(int i = 0; i < 4; i++) {
+        value += amplitude * smoothNoise(st * frequency * scale);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+      }
+      return value;
+    }
+
+    // 波の生成関数
+    float wave(float x, float y, float freq, float amp, float speed, float time, float dx, float dy) {
+      if (uWaveType == 1) {
+        float wave = sin(x * dx * freq + y * dy * freq + time * speed);
+        return wave * amp;
+      } else {
+        // ノイズを加えた波の生成
+        vec2 noiseCoord = vec2(x * dx * uNoiseScale, y * dy * uNoiseScale + time * uNoiseTimeScale);
+        float noiseValue = noise(noiseCoord, 1.0) * uNoiseStrength;
+
+        float wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
+        return wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
+      }
+    }
+
     void main(void) {
       //vec3 light = uLightPosition - vPosition;
       //vec3 invLight = normalize(uInvModelMatrix * vec4(light, 0.0)).xyz;
       //float diffuse = clamp(dot(vNormal, invLight), 0.2, 1.0);
 
+      // 複数の波を重ね合わせる
       float offsetX = 0.0;
       if (uFrequencyX != 0.0) {
-        offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+        if (uWaveType == 0) {
+          offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+        } else {
+          // 波1：基本的な波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX, uAmplitudeX, uSpeedX, uElapse, 1.0, 0.0);
+          // 波2：斜めの波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX * 0.7, uAmplitudeX * 0.5, uSpeedX * 0.8, uElapse, 0.7, 0.7);
+          // 波3：細かい波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX * 1.5, uAmplitudeX * 0.3, uSpeedX * 1.2, uElapse, 0.3, 0.9);
+        }
       }
       float offsetY = 0.0;
       if (uFrequencyY != 0.0) {
-        offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+        if (uWaveType == 0) {
+          offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+        } else {
+          // 波1：基本的な波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY, uAmplitudeY, uSpeedY, uElapse, 0.0, 1.0);
+          // 波2：斜めの波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY * 0.7, uAmplitudeY * 0.5, uSpeedY * 0.8, uElapse, 0.7, 0.7);
+          // 波3：細かい波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY * 1.5, uAmplitudeY * 0.3, uSpeedY * 1.2, uElapse, 0.3, 0.9);
+        }
       }
+
       vec4 textureCoordShadowmap = vec4(vTextureCoordShadowmap.x + offsetX, vTextureCoordShadowmap.y + offsetY, vTextureCoordShadowmap.z, vTextureCoordShadowmap.w);
 
       vec4 depthColor = vec4(1.0);
@@ -508,6 +686,7 @@ function init3D(gl, _glu) {
     }
     uMirror[i] = sceneShader[i].uniform("uMirror");
 
+    uWaveType[i] = sceneShader[i].uniform('uWaveType');
     uFrequencyX[i] = sceneShader[i].uniform('uFrequencyX');
     uFrequencyY[i] = sceneShader[i].uniform('uFrequencyY');
     uAmplitudeX[i] = sceneShader[i].uniform('uAmplitudeX');
@@ -515,6 +694,10 @@ function init3D(gl, _glu) {
     uSpeedX[i] = sceneShader[i].uniform('uSpeedX');
     uSpeedY[i] = sceneShader[i].uniform('uSpeedY');
     uElapse[i] = sceneShader[i].uniform('uElapse');
+    uNoiseScale[i] = sceneShader[i].uniform('uNoiseScale');
+    uNoiseTimeScale[i] = sceneShader[i].uniform('uNoiseTimeScale');
+    uNoiseStrength[i] = sceneShader[i].uniform('uNoiseStrength');
+    uNoiseAmplitude[i] = sceneShader[i].uniform('uNoiseAmplitude');
   }
   //---- シェーダープログラムの変数ここまで ----
 
@@ -533,29 +716,110 @@ function init3D(gl, _glu) {
     }
   `;
   var fsSourceMirror = `
+    precision mediump int;
     precision mediump float;
 
     uniform sampler2D uSampler;
     uniform float uAlpha;
 
+    uniform int uWaveType;
     uniform float uFrequencyX, uFrequencyY; // 波の頻度
     uniform float uAmplitudeX, uAmplitudeY; // 揺れ幅
     uniform float uSpeedX, uSpeedY; // 揺れのスピード
     uniform float uElapse; // 経過時間
+    uniform float uNoiseScale; // ノイズのスケール
+    uniform float uNoiseTimeScale; // 時間の影響度
+    uniform float uNoiseStrength; // ノイズの強さ
+    uniform float uNoiseAmplitude; // 振幅へのノイズの影響度
+    uniform int uVisualize;
 
     varying vec2 vTextureCoord;
 
+    // 擬似乱数関数
+    float random(vec2 st) {
+      return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+    }
+
+    // パーリンノイズの補間関数
+    float smoothNoise(vec2 st) {
+      vec2 i = floor(st);
+      vec2 f = fract(st);
+
+      // 4つの角のノイズ値を取得
+      float a = random(i);
+      float b = random(i + vec2(1.0, 0.0));
+      float c = random(i + vec2(0.0, 1.0));
+      float d = random(i + vec2(1.0, 1.0));
+
+      // スムーズな補間
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+
+    // 複数オクターブのノイズ
+    float noise(vec2 st, float scale) {
+      float value = 0.0;
+      float amplitude = 1.0;
+      float frequency = 1.0;
+      for(int i = 0; i < 4; i++) {
+        value += amplitude * smoothNoise(st * frequency * scale);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+      }
+      return value;
+    }
+
+    // 波の生成関数
+    float wave(float x, float y, float freq, float amp, float speed, float time, float dx, float dy) {
+      if (uWaveType == 1) {
+        float wave = sin(x * dx * freq + y * dy * freq + time * speed);
+        return wave * amp;
+      } else {
+        // ノイズを加えた波の生成
+        vec2 noiseCoord = vec2(x * dx * uNoiseScale, y * dy * uNoiseScale + time * uNoiseTimeScale);
+        float noiseValue = noise(noiseCoord, 1.0) * uNoiseStrength;
+
+        float wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
+        return wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
+      }
+    }
+
     void main(void) {
+      // 複数の波を重ね合わせる
       float offsetX = 0.0;
       if (uFrequencyX != 0.0) {
-        offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+        if (uWaveType == 0) {
+          offsetX = sin(gl_FragCoord.x * uFrequencyX + uElapse * uSpeedX) * uAmplitudeX;
+        } else {
+          // 波1：基本的な波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX, uAmplitudeX, uSpeedX, uElapse, 1.0, 0.0);
+          // 波2：斜めの波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX * 0.7, uAmplitudeX * 0.5, uSpeedX * 0.8, uElapse, 0.7, 0.7);
+          // 波3：細かい波
+          offsetX += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyX * 1.5, uAmplitudeX * 0.3, uSpeedX * 1.2, uElapse, 0.3, 0.9);
+        }
       }
       float offsetY = 0.0;
       if (uFrequencyY != 0.0) {
-        offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+        if (uWaveType == 0) {
+          offsetY = cos(gl_FragCoord.y * uFrequencyY + uElapse * uSpeedY) * uAmplitudeY;
+        } else {
+          // 波1：基本的な波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY, uAmplitudeY, uSpeedY, uElapse, 0.0, 1.0);
+          // 波2：斜めの波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY * 0.7, uAmplitudeY * 0.5, uSpeedY * 0.8, uElapse, 0.7, 0.7);
+          // 波3：細かい波
+          offsetY += wave(gl_FragCoord.x, gl_FragCoord.y, uFrequencyY * 1.5, uAmplitudeY * 0.3, uSpeedY * 1.2, uElapse, 0.3, 0.9);
+        }
       }
+
+      float visualize = 0.0;
+      if (bool(uVisualize)) {
+        visualize = (offsetX / uAmplitudeX / 3.14159 + offsetY / uAmplitudeY / 3.14159) / 4.0; // -0.5～0.5
+      }
+
       vec4 color = texture2D(uSampler, vec2(vTextureCoord.x + offsetX, vTextureCoord.y + offsetY));
-      gl_FragColor = vec4(color.rgb, uAlpha);
+      gl_FragColor = vec4(color.rgb, uAlpha + visualize);
     }
   `;
   mirrorShader = new _GLShader(vsSourceMirror, fsSourceMirror);
@@ -568,6 +832,7 @@ function init3D(gl, _glu) {
   //---- シェーダープログラムの変数ここまで ----
 
   //---- シェーダープログラムの変数ここから ----
+  uWaveTypeMirror = mirrorShader.uniform('uWaveType');
   uFrequencyXMirror = mirrorShader.uniform('uFrequencyX');
   uFrequencyYMirror = mirrorShader.uniform('uFrequencyY');
   uAmplitudeXMirror = mirrorShader.uniform('uAmplitudeX');
@@ -575,12 +840,18 @@ function init3D(gl, _glu) {
   uSpeedXMirror = mirrorShader.uniform('uSpeedX');
   uSpeedYMirror = mirrorShader.uniform('uSpeedY');
   uElapseMirror = mirrorShader.uniform('uElapse');
+  uNoiseScaleMirror = mirrorShader.uniform('uNoiseScale');
+  uNoiseTimeScaleMirror = mirrorShader.uniform('uNoiseTimeScale');
+  uNoiseStrengthMirror = mirrorShader.uniform('uNoiseStrength');
+  uNoiseAmplitudeMirror = mirrorShader.uniform('uNoiseAmplitude');
+  uVisualizeMirror = mirrorShader.uniform('uVisualize');
   //---- シェーダープログラムの変数ここまで ----
 
   model[0] = createGLModel(model_witch, 0.015, 0, true, false);
   model[1] = createGLModel(model_cat, 0.005, 1, true, false);
   model[2] = createGLModel(model_swan, 0.005, 2, true, false);
   model[3] = createGLModel(model_ground, 0.033, 3, true, false);
+  model[4] = createGLModel(model_mesh, 0.033, 4, true, false);
 
   // 画面全体を覆う板ポリゴンのデータ
   const positions = [
@@ -642,20 +913,31 @@ function init3D(gl, _glu) {
     if (i == 1) {
       gl.uniform1i(uSampler, 1/*TEXTURE1*/);
     }
+    gl.uniform1i(uWaveType[i], waveType);
     gl.uniform1f(uFrequencyX[i], 0.1); // 波のX方向頻度
     gl.uniform1f(uFrequencyY[i], 0.1); // 波のY方向頻度
-    gl.uniform1f(uAmplitudeX[i], 0.005); // X方向揺れ幅
+    gl.uniform1f(uAmplitudeX[i], 0.005*20); // X方向揺れ幅
     gl.uniform1f(uAmplitudeY[i], 0.005); // Y方向揺れ幅
     gl.uniform1f(uSpeedX[i], 0.5); // X方向の揺れのスピード
     gl.uniform1f(uSpeedY[i], 0.5); // Y方向の揺れのスピード
+    gl.uniform1f(uNoiseScale[i], 0.02); // ノイズのスケール
+    gl.uniform1f(uNoiseTimeScale[i], 0.1); // 時間の影響度
+    gl.uniform1f(uNoiseStrength[i], 0.2); // ノイズの強さ
+    gl.uniform1f(uNoiseAmplitude[i], 0.5); // 振幅へのノイズの影響度
   }
   mirrorShader.use();
+  gl.uniform1i(uWaveTypeMirror, waveType);
   gl.uniform1f(uFrequencyXMirror, 0.1); // 波のX方向頻度
   gl.uniform1f(uFrequencyYMirror, 0.1); // 波のY方向頻度
-  gl.uniform1f(uAmplitudeXMirror, 0.001); // X方向揺れ幅
+  gl.uniform1f(uAmplitudeXMirror, 0.001*20); // X方向揺れ幅
   gl.uniform1f(uAmplitudeYMirror, 0.001); // Y方向揺れ幅
   gl.uniform1f(uSpeedXMirror, 0.5); // X方向の揺れのスピード
   gl.uniform1f(uSpeedYMirror, 0.5); // Y方向の揺れのスピード
+  gl.uniform1f(uNoiseScaleMirror, 0.02); // ノイズのスケール
+  gl.uniform1f(uNoiseTimeScaleMirror, 0.1); // 時間の影響度
+  gl.uniform1f(uNoiseStrengthMirror, 0.2); // ノイズの強さ
+  gl.uniform1f(uNoiseAmplitudeMirror, 0.5); // 振幅へのノイズの影響度
+  gl.uniform1i(uVisualizeMirror, visualize ? 1 : 0);
 
   mySetLightPos(gl);
 
@@ -741,10 +1023,15 @@ function myDrawScene(gl) {
 
   // 反射面の板を除くモデルの描画
   gld = new _GLDraw(null);
-  gld.add(model[0], -1, -1, null, -1);
-  gld.add(model[1], -1, -1, null, -1);
-  gld.add(model[2], -1, -1, null, -1);
+  if (dispModel) {
+    gld.add(model[0], -1, -1, null, -1);
+    gld.add(model[1], -1, -1, null, -1);
+    gld.add(model[2], -1, -1, null, -1);
+  }
   //gld.add(model[3], -1, -1, null, -1);
+  if (dispMesh) {
+    gld.add(model[4], -1, 3, null, -1);
+  }
   shadowFlag = true;
   gld.draw(glt);
 
@@ -792,10 +1079,15 @@ function myDrawScene(gl) {
 
   // 反射面の板を除くモデルの描画
   gld = new _GLDraw(null);
-  gld.add(model[0], -1, -1, null, -1);
-  gld.add(model[1], -1, -1, null, -1);
-  gld.add(model[2], -1, -1, null, -1);
+  if (dispModel) {
+    gld.add(model[0], -1, -1, null, -1);
+    gld.add(model[1], -1, -1, null, -1);
+    gld.add(model[2], -1, -1, null, -1);
+  }
   //gld.add(model[3], -1, -1, null, -1);
+  if (dispMesh) {
+    gld.add(model[4], -1, 3, null, -1);
+  }
   shadowFlag = false;
   gld.draw(glt);
 
@@ -880,13 +1172,13 @@ function glModelActiveTexture(gl, id) {
 }
 function glModelBindPositionBuffer(gl, id) {
   if (shadowFlag) {
-    if (id == 0) {
+    if (id == 0 || id == 4) {
       _GLShader.bindPositionBuffer(aVertexPositionShadowmap[1]);
     } else {
       _GLShader.bindPositionBuffer(aVertexPositionShadowmap[0]);
     }
   } else {
-    if (id == 0) {
+    if (id == 0 || id == 4) {
       _GLShader.bindPositionBuffer(aVertexPosition[1]);
     } else {
       _GLShader.bindPositionBuffer(aVertexPosition[0]);
@@ -896,7 +1188,7 @@ function glModelBindPositionBuffer(gl, id) {
 function glModelBindNormalBuffer(gl, id) {
   if (shadowFlag) {
   } else {
-    if (id == 0) {
+    if (id == 0 || id == 4) {
       _GLShader.bindNormalBuffer(aVertexNormal[1]);
     } else {
       _GLShader.bindNormalBuffer(aVertexNormal[0]);
@@ -914,7 +1206,7 @@ function glModelBindColorBuffer(gl, id) {
 function glModelBindTextureCoordBuffer(gl, id) {
   if (shadowFlag) {
   } else {
-    if (id == 0) {
+    if (id == 0 || id == 4) {
       _GLShader.bindTextureCoordBuffer(aTextureCoord);
     }
   }
@@ -952,7 +1244,7 @@ function glDrawUseProgram(gl, p, index) {
     shadowmapShader.use();
   } else {
     // プログラムオブジェクトの選択
-    var i = (p.id() == 0) ? 1 : 0;
+    var i = (p.id() == 0 || p.id() == 4) ? 1 : 0;
     sceneShader[i].use();
 
     if (p.id() == 3) {
@@ -1001,6 +1293,13 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
   if (p.id() == 3) {
     glu.translate(0.0, groundY, 0.0);
   }
+  if (p.id() == 4) {
+    if (mirrorFlag) {
+      glu.translate(0.0, groundY - (3.3 - groundY), -3.3);
+    } else {
+      glu.translate(0.0, 3.3, -3.3);
+    }
+  }
   var modelMatrix = glu.glMatrix();
 
   if (shadowFlag) {
@@ -1008,7 +1307,7 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
 
     gl.uniform1i(uMirrorShadowmap, mirrorFlag);
   } else {
-    var i = (p.id() == 0) ? 1 : 0;
+    var i = (p.id() == 0 || p.id() == 4) ? 1 : 0;
 
     gl.uniformMatrix4fv(uModelMatrix[i], false, modelMatrix);
 
