@@ -209,6 +209,11 @@ function myLookAt(glu, add) {
   }
 }
 function myDraw(gl) {
+  // 描画領域を伝える
+  if (useStereo) {
+    stereo.viewport();
+  }
+
   gl.clearColor(0.0, 0.0, 1.0, 1.0);
   gl.clearDepth(1.0);
   if (useStereo) {
@@ -224,12 +229,6 @@ function myDraw(gl) {
   gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 
   gl.depthMask(false);
-
-  // 描画領域を伝える
-  if (useStereo) {
-    stereo.viewport();
-  }
-
   var gld = new _GLDraw(null);
   for (var z = -10; z <= 10; z += 2) {
     for (var x = -10; x <= 10; x += 2) {

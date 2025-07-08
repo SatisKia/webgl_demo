@@ -13,11 +13,15 @@ window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
 var useFog = false;
-var useDepth = true;
-var useStereo = false;
 
+var useStereo = false;
 var canvasWidth = 1024;
 var stereoAngle = 3.0;
+
+var focusDepth = 0.2; // 焦点距離
+var focusRange = 0.8; // ピントが合っているとみなす範囲
+var maxBlur = 0.005; // 最大ぼかし量
+
 var stereo;
 
 var img_loading = false;
@@ -47,6 +51,9 @@ var bufferShader;
 var aVertexPositionBuffer;
 var aTextureCoordBuffer;
 var uOrthoMatrixBuffer;
+var uFocusDepthBuffer;
+var uFocusRangeBuffer;
+var uMaxBlurBuffer;
 //---- シェーダープログラムの変数ここまで ----
 
 var gls;
@@ -105,6 +112,7 @@ function frameTime() {
 }
 
 function init() {
+  window._USE_KEY = true;
 }
 
 function start() {
@@ -133,10 +141,8 @@ function init3D(gl, glu) {
 
   glt = new _GLTexture(image_array, 1);
 
-  if (useDepth) {
-    // バッファの構築
-    frameBuffer = myCreateFrameBufferObject(gl, frameBufferWidth, frameBufferHeight);
-  }
+  // バッファの構築
+  frameBuffer = myCreateFrameBufferObject(gl, frameBufferWidth, frameBufferHeight);
 
   var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
   var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
@@ -209,92 +215,97 @@ function init3D(gl, glu) {
   var uFogFar = shader.uniform("uFogFar");
   //---- シェーダープログラムの変数ここまで ----
 
-  if (useDepth) {
-    var fsSourceDepth = `
-      precision mediump float;
+  var fsSourceDepth = `
+    precision mediump float;
 
-      uniform float uFogFar;
+    uniform float uFogFar;
 
-      varying float vFogDepth;
+    varying float vFogDepth;
 
-      void main(void) {
-        float depth = clamp(vFogDepth / uFogFar, 0.0, 1.0);
-        gl_FragColor = vec4(depth, depth, depth, 1.0);
-      }
-    `;
-    depthShader = new _GLShader(vsSource, fsSourceDepth);
+    void main(void) {
+      float depth = clamp(vFogDepth / uFogFar, 0.0, 1.0);
+      gl_FragColor = vec4(depth, depth, depth, 1.0);
+    }
+  `;
+  depthShader = new _GLShader(vsSource, fsSourceDepth);
 
-    //---- シェーダープログラムの変数ここから ----
-    aVertexPositionDepth = depthShader.attrib("aVertexPosition");
-    aTextureCoordDepth = depthShader.attrib("aTextureCoord");
+  //---- シェーダープログラムの変数ここから ----
+  aVertexPositionDepth = depthShader.attrib("aVertexPosition");
+  aTextureCoordDepth = depthShader.attrib("aTextureCoord");
 
-    uProjectionMatrixDepth = depthShader.uniform("uProjectionMatrix");
-    uModelViewMatrixDepth = depthShader.uniform("uModelViewMatrix");
+  uProjectionMatrixDepth = depthShader.uniform("uProjectionMatrix");
+  uModelViewMatrixDepth = depthShader.uniform("uModelViewMatrix");
 
-    var uFogFarDepth = depthShader.uniform("uFogFar");
-    //---- シェーダープログラムの変数ここまで ----
+  var uFogFarDepth = depthShader.uniform("uFogFar");
+  //---- シェーダープログラムの変数ここまで ----
 
-    var vsSourceBuffer = `
-      attribute vec3 aVertexPosition;
-      attribute vec2 aTextureCoord;
+  var vsSourceBuffer = `
+    attribute vec3 aVertexPosition;
+    attribute vec2 aTextureCoord;
 
-      uniform mat4 uOrthoMatrix;
+    uniform mat4 uOrthoMatrix;
 
-      varying vec2 vTextureCoord;
+    varying vec2 vTextureCoord;
 
-      void main(void) {
-        gl_Position = uOrthoMatrix * vec4(aVertexPosition, 1.0);
+    void main(void) {
+      gl_Position = uOrthoMatrix * vec4(aVertexPosition, 1.0);
 
-        vTextureCoord = aTextureCoord;
-      }
-    `;
-    var fsSourceBuffer = `
-      precision mediump float;
+      vTextureCoord = aTextureCoord;
+    }
+  `;
+  var fsSourceBuffer = `
+    precision mediump float;
 
-      uniform sampler2D uColorSampler;
-      uniform sampler2D uDepthSampler;
+    uniform sampler2D uColorSampler;
+    uniform sampler2D uDepthSampler;
 
-      varying vec2 vTextureCoord;
+    uniform float uFocusDepth; // 焦点距離
+    uniform float uFocusRange; // ピントが合っているとみなす範囲
+    uniform float uMaxBlur; // 最大ぼかし量
 
-      void main(void) {
-        float depth = texture2D(uDepthSampler, vTextureCoord).r;
-        float amount = smoothstep(0.2, 1.0, depth) * 0.005;
-        vec4 color = vec4(0.0);
-        float total = 0.0;
-        for (int dx = -1; dx <= 1; dx++) {
-          for (int dy = -1; dy <= 1; dy++) {
-            float weight = 1.0;
-            vec2 offset = vec2(float(dx), float(dy)) * amount;
-            color += texture2D(uColorSampler, vTextureCoord + offset) * weight;
-            total += weight;
-          }
+    varying vec2 vTextureCoord;
+
+    void main(void) {
+      float depth = texture2D(uDepthSampler, vTextureCoord).r;
+      float blur = abs(depth - uFocusDepth) / uFocusRange;
+      float amount = clamp(blur, 0.0, 1.0) * uMaxBlur;
+      vec4 color = vec4(0.0);
+      float total = 0.0;
+      for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+          float weight = 1.0;
+          vec2 offset = vec2(float(dx), float(dy)) * amount;
+          color += texture2D(uColorSampler, vTextureCoord + offset) * weight;
+          total += weight;
         }
-        color /= total;
-        gl_FragColor = vec4(color.rgb, 1.0);
       }
-    `;
-    bufferShader = new _GLShader(vsSourceBuffer, fsSourceBuffer);
+      color /= total;
+      gl_FragColor = vec4(color.rgb, 1.0);
+    }
+  `;
+  bufferShader = new _GLShader(vsSourceBuffer, fsSourceBuffer);
 
-    //---- シェーダープログラムの変数ここから ----
-    aVertexPositionBuffer = bufferShader.attrib('aVertexPosition');
-    aTextureCoordBuffer = bufferShader.attrib('aTextureCoord');
+  //---- シェーダープログラムの変数ここから ----
+  aVertexPositionBuffer = bufferShader.attrib('aVertexPosition');
+  aTextureCoordBuffer = bufferShader.attrib('aTextureCoord');
 
-    uOrthoMatrixBuffer = bufferShader.uniform('uOrthoMatrix');
+  uOrthoMatrixBuffer = bufferShader.uniform('uOrthoMatrix');
 
-    var uColorSamplerBuffer = bufferShader.uniform('uColorSampler');
-    var uDepthSamplerBuffer = bufferShader.uniform('uDepthSampler');
-    //---- シェーダープログラムの変数ここまで ----
-  }
+  var uColorSamplerBuffer = bufferShader.uniform('uColorSampler');
+  var uDepthSamplerBuffer = bufferShader.uniform('uDepthSampler');
+
+  uFocusDepthBuffer = bufferShader.uniform('uFocusDepth');
+  uFocusRangeBuffer = bufferShader.uniform('uFocusRange');
+  uMaxBlurBuffer = bufferShader.uniform('uMaxBlur');
+  //---- シェーダープログラムの変数ここまで ----
 
   if (useStereo) {
     stereo.setProjectionMatrix(projectionMatrix);
   } else {
     shader.use();
     gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
-    if (useDepth) {
-      depthShader.use();
-      gl.uniformMatrix4fv(uProjectionMatrixDepth, false, projectionMatrix);
-    }
+    depthShader.use();
+    gl.uniformMatrix4fv(uProjectionMatrixDepth, false, projectionMatrix);
   }
 
   shader.use();
@@ -304,14 +315,12 @@ function init3D(gl, glu) {
   gl.uniform1f(uFogNear, 5.0);
   gl.uniform1f(uFogFar, 20.0);
 
-  if (useDepth) {
-    depthShader.use();
-    gl.uniform1f(uFogFarDepth, 20.0);
+  depthShader.use();
+  gl.uniform1f(uFogFarDepth, 20.0);
 
-    bufferShader.use();
-    gl.uniform1i(uColorSamplerBuffer, 0);
-    gl.uniform1i(uDepthSamplerBuffer, 1);
-  }
+  bufferShader.use();
+  gl.uniform1i(uColorSamplerBuffer, 0);
+  gl.uniform1i(uDepthSamplerBuffer, 1);
 
   var coord = new Array(12);
   coord[ 0] = -0.5; coord[ 1] = -0.5; coord[ 2] = 0.0;
@@ -327,29 +336,27 @@ function init3D(gl, glu) {
   gls.setCoord(coord);
   gls.setMap(map);
 
-  if (useDepth) {
-    // 画面全体を覆う板ポリゴンのデータ
-    const positions = [
-      -1.0,  1.0, 0.0, // 左上
-       1.0,  1.0, 0.0, // 右上
-      -1.0, -1.0, 0.0, // 左下
-       1.0, -1.0, 0.0, // 右下
-    ];
-    const textureCoordinates = [
-      0.0, 0.0, // 左上
-      1.0, 0.0, // 右上
-      0.0, 1.0, // 左下
-      1.0, 1.0, // 右下
-    ];
-    positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    textureCoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  }
+  // 画面全体を覆う板ポリゴンのデータ
+  const positions = [
+    -1.0,  1.0, 0.0, // 左上
+     1.0,  1.0, 0.0, // 右上
+    -1.0, -1.0, 0.0, // 左下
+     1.0, -1.0, 0.0, // 右下
+  ];
+  const textureCoordinates = [
+    0.0, 0.0, // 左上
+    1.0, 0.0, // 右上
+    0.0, 1.0, // 左下
+    1.0, 1.0, // 右下
+  ];
+  positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  textureCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
   return true;
 }
@@ -363,6 +370,22 @@ function clear2D(g) {
 }
 
 function paint3D(gl, glu) {
+  var key = getKeypadState();
+  if ((key & keyBit(window._KEY_UP   )) != 0) { focusDepth += 0.01; }
+  if ((key & keyBit(window._KEY_DOWN )) != 0) { focusDepth -= 0.01; }
+  if ((key & keyBit(window._KEY_LEFT )) != 0) { focusRange -= 0.01; }
+  if ((key & keyBit(window._KEY_RIGHT)) != 0) { focusRange += 0.01; }
+  if ((key & keyBit(window._KEY_Z    )) != 0) { maxBlur -= 0.001; }
+  if ((key & keyBit(window._KEY_X    )) != 0) { maxBlur += 0.001; }
+  focusDepth = Math.max(0.0, Math.min(1.0, focusDepth));
+  focusRange = Math.max(0.001, Math.min(1.0, focusRange));
+  if (maxBlur < 0.0) { maxBlur = 0.0; }
+
+  bufferShader.use();
+  gl.uniform1f(uFocusDepthBuffer, focusDepth); // 焦点距離
+  gl.uniform1f(uFocusRangeBuffer, focusRange); // ピントが合っているとみなす範囲
+  gl.uniform1f(uMaxBlurBuffer, maxBlur); // 最大ぼかし量
+
   myLookAt(glu, 0.0);
 
   if (useStereo) {
@@ -371,40 +394,38 @@ function paint3D(gl, glu) {
     myDraw(gl, glu);
   }
 
-  if (useDepth) {
-    // 描画領域を伝える
-    glu.viewport(0.0, 0.0, getWidth(), getHeight());
+  // 描画領域を伝える
+  glu.viewport(0.0, 0.0, getWidth(), getHeight());
 
-    // プログラムオブジェクトの選択
-    bufferShader.use();
+  // プログラムオブジェクトの選択
+  bufferShader.use();
 
-    // 正射影用の座標変換行列
-    glu.lookAt(0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
-    var tmpMatrix = glu.glMatrix();
-    glu.setIdentity();
-    glu.ortho(-1.0, 1.0, 1.0, -1.0, 0.1, 1.0);
-    glu.multiply(glu.utMatrix(tmpMatrix));
-    gl.uniformMatrix4fv(uOrthoMatrixBuffer, false, glu.glMatrix());
+  // 正射影用の座標変換行列
+  glu.lookAt(0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+  var tmpMatrix = glu.glMatrix();
+  glu.setIdentity();
+  glu.ortho(-1.0, 1.0, 1.0, -1.0, 0.1, 1.0);
+  glu.multiply(glu.utMatrix(tmpMatrix));
+  gl.uniformMatrix4fv(uOrthoMatrixBuffer, false, glu.glMatrix());
 
-    // 画面全体を覆う板ポリゴンの構築
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.vertexAttribPointer(aVertexPositionBuffer, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aVertexPositionBuffer);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-    gl.vertexAttribPointer(aTextureCoordBuffer, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aTextureCoordBuffer);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  // 画面全体を覆う板ポリゴンの構築
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.vertexAttribPointer(aVertexPositionBuffer, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(aVertexPositionBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+  gl.vertexAttribPointer(aTextureCoordBuffer, 2, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(aTextureCoordBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-    // テクスチャの設定
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, frameBuffer.colorTexture);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, frameBuffer.depthTexture);
+  // テクスチャの設定
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, frameBuffer.colorTexture);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, frameBuffer.depthTexture);
 
-    // 描画
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  }
+  // 描画
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 function myLookAt(glu, add) {
   var camera_x = 0.0;
@@ -426,19 +447,24 @@ function myLookAt(glu, add) {
 }
 function myDraw(gl, glu) {
   for (var i = 0; i < 2; i++) {
-    if (useDepth) {
-      // フレームバッファをバインド
-      if (i == 0) {
-        depthFlag = false;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frameBuffer.colorTexture, 0);
-        shader.use();
-      } else {
-        depthFlag = true;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frameBuffer.depthTexture, 0);
-        depthShader.use();
-      }
+    // フレームバッファをバインド
+    if (i == 0) {
+      depthFlag = false;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frameBuffer.colorTexture, 0);
+      shader.use();
+    } else {
+      depthFlag = true;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frameBuffer.depthTexture, 0);
+      depthShader.use();
+    }
+
+    // 描画領域を伝える
+    if (useStereo) {
+      stereo.viewport();
+    } else {
+      glu.viewport(0.0, 0.0, frameBufferWidth, frameBufferHeight);
     }
 
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
@@ -456,16 +482,6 @@ function myDraw(gl, glu) {
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 
     gl.depthMask(false);
-
-    // 描画領域を伝える
-    if (useStereo) {
-      stereo.viewport();
-    } else {
-      if (useDepth) {
-        glu.viewport(0.0, 0.0, frameBufferWidth, frameBufferHeight);
-      }
-    }
-
     var gld = new _GLDraw(null);
     for (var z = -10; z <= 10; z += 2) {
       for (var x = -10; x <= 10; x += 2) {
@@ -474,16 +490,17 @@ function myDraw(gl, glu) {
     }
     gld.draw(glt);
 
-    if (useDepth) {
-      // フレームバッファのバインドを解除
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    } else {
-      break;
-    }
+    // フレームバッファのバインドを解除
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 }
 
 function paint2D(g) {
+  g.setFont(24, "ＭＳ ゴシック");
+  g.setColor(g.getColorOfRGB(255, 0, 255));
+  g.drawString("focusDepth " + (_INT(focusDepth * 100) / 100), 0, 24);
+  g.drawString("focusRange " + (_INT(focusRange * 100) / 100), 0, 48);
+  g.drawString("maxBlur " + (_INT(maxBlur * 1000) / 1000), 0, 72);
 }
 
 // _GLTexture用
@@ -508,14 +525,14 @@ function glSpriteActiveTexture(gl, id) {
   return gl.TEXTURE0;
 }
 function glSpriteBindPositionBuffer(gl, id) {
-  if (useDepth && depthFlag) {
+  if (depthFlag) {
     _GLShader.bindPositionBuffer(aVertexPositionDepth);
   } else {
     _GLShader.bindPositionBuffer(aVertexPosition);
   }
 }
 function glSpriteBindTextureCoordBuffer(gl, id) {
-  if (useDepth && depthFlag) {
+  if (depthFlag) {
     _GLShader.bindTextureCoordBuffer(aTextureCoordDepth);
   } else {
     _GLShader.bindTextureCoordBuffer(aTextureCoord);
@@ -527,7 +544,7 @@ function glSpriteSetTexture(gl, glt, tex_index, id) {
 
 // _GLDraw用
 function glDrawUseProgram(gl, p, index) {
-  if (useDepth && depthFlag) {
+  if (depthFlag) {
     depthShader.use();
   } else {
     shader.use();
@@ -536,7 +553,7 @@ function glDrawUseProgram(gl, p, index) {
 function glDrawSetProjectionMatrix(gl, mat, p, index) {
 }
 function glDrawSetModelViewMatrix(gl, mat) {
-  if (useDepth && depthFlag) {
+  if (depthFlag) {
     gl.uniformMatrix4fv(uModelViewMatrixDepth, false, mat);
   } else {
     gl.uniformMatrix4fv(uModelViewMatrix, false, mat);
@@ -547,10 +564,8 @@ function glDrawSetModelViewMatrix(gl, mat) {
 function glStereoSetProjectionMatrix(gl, mat) {
   shader.use();
   gl.uniformMatrix4fv(uProjectionMatrix, false, mat);
-  if (useDepth) {
-    depthShader.use();
-    gl.uniformMatrix4fv(uProjectionMatrixDepth, false, mat);
-  }
+  depthShader.use();
+  gl.uniformMatrix4fv(uProjectionMatrixDepth, false, mat);
 }
 function glStereoSetViewMatrix(gl, mat) {
 }

@@ -112,6 +112,10 @@ function makeStrip(data) {
       const next = strips[i][0];
       // 縮退三角形を挟む
       result.push(prev, next);
+      // 前ストリップの長さが奇数なら、もう1つ縮退三角形を挟む
+      if ((strips[i - 1].length % 2) == 1) {
+        result.push(next);
+      }
     }
     result.push(...strips[i]);
   }

@@ -23,8 +23,6 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
-var enableCullFace = true;
-
 var useShadowOrtho = false;
 var shadowOrthoTop = 5.0; // useShadowOrthoがtrueの時のみ参照される
 var useTextureFloat = false;
@@ -616,9 +614,7 @@ function paint3D(gl, glu) {
   if ((key & keyBit(window._KEY_X    )) != 0) { lightZ -= 0.1; }
   mySetLightPos(gl);
 
-  if (enableCullFace) {
-    gl.enable(gl.CULL_FACE); // 裏面を表示しない
-  }
+  gl.enable(gl.CULL_FACE); // 裏面を表示しない
 
   gl.enable(gl.DEPTH_TEST); // 深度テストを有効化
   gl.depthFunc(gl.LEQUAL); // 奥にあるものは隠れるようにする
