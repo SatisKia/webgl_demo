@@ -14,6 +14,9 @@ window.onresize = d2js_onresize;
 
 var useGouraud = true;
 var diffuse = [1.0, 0.0, 1.0]; // マゼンタ
+var useEmission = false;
+var emissionColor = [1.0, 0.0, 1.0]; // マゼンタ
+var emissionIntensity = 0.75; // 0.0で自己発光なし
 
 var img_loading = false;
 var image;
@@ -145,6 +148,9 @@ function init3D(gl, glu) {
     uniform vec3 uSpecular;
     uniform float uShininess;
 
+    uniform vec3 uEmissionColor; // 発光色
+    uniform float uEmissionIntensity; // 発光強度
+
     uniform sampler2D uSampler;
 
     varying highp vec2 vTextureCoord;
@@ -164,8 +170,10 @@ function init3D(gl, glu) {
       highp float powCosAngle = pow(clamp(dot(normal, halfVector), 0.0, 1.0), uShininess); // 内積によって得られた結果をべき乗によって収束させる
       highp vec3 specular = (uSpecularLightColor * uSpecular) * powCosAngle;
 
+      vec3 emission = uEmissionColor * uEmissionIntensity;
+
       highp vec4 color = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
-      gl_FragColor = vec4(color.rgb * (diffuse + ambient + specular), color.a);
+      gl_FragColor = vec4(color.rgb * (diffuse + ambient + specular) + emission, color.a);
     }
   `;
 
@@ -196,10 +204,14 @@ function init3D(gl, glu) {
     uniform vec3 uSpecular;
     uniform float uShininess;
 
+    uniform vec3 uEmissionColor; // 発光色
+    uniform float uEmissionIntensity; // 発光強度
+
     varying highp vec2 vTextureCoord;
     varying highp vec3 vDiffuse;
     varying lowp vec3 vAmbient;
     varying highp vec3 vSpecular;
+    varying highp vec3 vEmission;
 
     void main(void) {
       gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aVertexPosition, 1.0);
@@ -218,6 +230,8 @@ function init3D(gl, glu) {
       highp vec3 halfVector = normalize(invLight + uEyeDirection);
       highp float powCosAngle = pow(clamp(dot(normal, halfVector), 0.0, 1.0), uShininess); // 内積によって得られた結果をべき乗によって収束させる
       vSpecular = (uSpecularLightColor * uSpecular) * powCosAngle;
+
+      vEmission = uEmissionColor * uEmissionIntensity;
     }
   `;
   const fsSourceGouraud = `
@@ -230,10 +244,11 @@ function init3D(gl, glu) {
     varying highp vec3 vDiffuse;
     varying lowp vec3 vAmbient;
     varying highp vec3 vSpecular;
+    varying highp vec3 vEmission;
 
     void main(void) {
       highp vec4 color = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
-      gl_FragColor = vec4(color.rgb * (vDiffuse + vAmbient + vSpecular), color.a);
+      gl_FragColor = vec4(color.rgb * (vDiffuse + vAmbient + vSpecular) + vEmission, color.a);
     }
   `;
 
@@ -267,6 +282,9 @@ function init3D(gl, glu) {
   var uAmbient = shader.uniform("uAmbient");
   var uSpecular = shader.uniform("uSpecular");
   var uShininess = shader.uniform("uShininess");
+
+  var uEmissionColor = shader.uniform("uEmissionColor");
+  var uEmissionIntensity = shader.uniform("uEmissionIntensity");
 
   var uSampler = shader.uniform("uSampler");
   //---- シェーダープログラムの変数ここまで ----
@@ -357,6 +375,9 @@ function init3D(gl, glu) {
   gl.uniform3fv(uAmbient, [0.8, 0.8, 0.8]);
   gl.uniform3fv(uSpecular, [0.7, 0.7, 0.7]);
   gl.uniform1f(uShininess, 50.0);
+
+  gl.uniform3fv(uEmissionColor, emissionColor);
+  gl.uniform1f(uEmissionIntensity, useEmission ? emissionIntensity : 0.0);
 
   gl.uniform1i(uSampler, 0);
 
