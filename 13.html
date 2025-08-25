@@ -23,6 +23,8 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
+var useWireframe = false;
+
 var useShadowOrtho = false;
 var shadowOrthoTop = 5.0; // useShadowOrthoがtrueの時のみ参照される
 var useTextureFloat = false;
@@ -71,6 +73,14 @@ var uOffsetX = new Array(2);
 var uOffsetY = new Array(2);
 //---- シェーダープログラムの変数ここまで ----
 
+var wireframeShader;
+//---- シェーダープログラムの変数ここから ----
+var aVertexPositionWireframe;
+var uModelMatrixWireframe;
+var uViewProjMatrixWireframe;
+var uLineColorWireframe;
+//---- シェーダープログラムの変数ここまで ----
+
 var model = new Array(4);
 
 var shadowFlag;
@@ -93,6 +103,40 @@ var mouseX;
 var mouseY;
 var rotateX = 20.0;
 var rotateY = 20.0;
+
+// 三角形ストリップを、線の始点・終点を羅列したデータに変換（縮退三角形は除外される）
+function myAddTriangle(lines, a, b) {
+  var i;
+  for (i = 0; i < lines.length - 1; i += 2) {
+    if (((lines[i] == a) && (lines[i + 1] == b)) || ((lines[i] == b) && (lines[i + 1] == a))) {
+      break;
+    }
+  }
+  if (i >= lines.length - 1) {
+    lines[lines.length] = a; lines[lines.length] = b;
+  }
+}
+function myConvTriangleStripToLines(model/*_GLModel*/) {
+  var i, j;
+  for (i = 0; i < model.stripNum(); i++) {
+    var lines = new Array();
+    var seek_len = 2;
+    var seek_vertex = new Array(3);
+    while (seek_len < model._strip_len[i]) {
+      for (j = 0; j < 3; j++) {
+        seek_vertex[j] = model._strip[i][seek_len - j];
+      }
+      seek_len++;
+      if ((seek_vertex[0] != seek_vertex[1]) && (seek_vertex[0] != seek_vertex[2]) && (seek_vertex[1] != seek_vertex[2])) {
+        myAddTriangle(lines, seek_vertex[0], seek_vertex[1]);
+        myAddTriangle(lines, seek_vertex[1], seek_vertex[2]);
+        myAddTriangle(lines, seek_vertex[2], seek_vertex[0]);
+      }
+    }
+    model._strip[i] = lines;
+    model._strip_len[i] = lines.length;
+  }
+}
 
 function mySetLightPos(gl) {
   // モデルの回転に合わせて光源位置を変換
@@ -531,10 +575,45 @@ function init3D(gl, _glu) {
   }
   //---- シェーダープログラムの変数ここまで ----
 
-  model[0] = createGLModel(model_witch, 0.015, 0, true, false);
-  model[1] = createGLModel(model_cat, 0.005, 1, true, false);
-  model[2] = createGLModel(model_swan, 0.005, 2, true, false);
-  model[3] = createGLModel(model_ground, 0.1, 3, true, false);
+  const vsSourceWireframe = `
+    attribute vec3 aVertexPosition;
+
+    uniform mat4 uModelMatrix;
+    uniform mat4 uViewProjMatrix;
+
+    void main(void) {
+      vec3 position = (uModelMatrix * vec4(aVertexPosition, 1.0)).xyz;
+      gl_Position = uViewProjMatrix * vec4(position, 1.0);
+    }
+  `;
+  const fsSourceWireframe = `
+    precision mediump float;
+
+    uniform vec3 uLineColor;
+
+    void main(void) {
+      gl_FragColor = vec4(uLineColor, 1.0);
+    }
+  `;
+  wireframeShader = new _GLShader(vsSourceWireframe, fsSourceWireframe);
+  //---- シェーダープログラムの変数ここから ----
+  aVertexPositionWireframe = wireframeShader.attrib("aVertexPosition");
+  uModelMatrixWireframe = wireframeShader.uniform("uModelMatrix");
+  uViewProjMatrixWireframe = wireframeShader.uniform("uViewProjMatrix");
+  uLineColorWireframe = wireframeShader.uniform("uLineColor");
+  //---- シェーダープログラムの変数ここまで ----
+
+  var stripType = useWireframe ? window._GLSTRIP_TYPE_LINES : window._GLSTRIP_TYPE_TRIANGLE_STRIP;
+  model[0] = createGLModel(model_witch, 0.015, 0, true, false, stripType);
+  model[1] = createGLModel(model_cat, 0.005, 1, true, false, stripType);
+  model[2] = createGLModel(model_swan, 0.005, 2, true, false, stripType);
+  model[3] = createGLModel(model_ground, 0.1, 3, true, false, stripType);
+  if (useWireframe) {
+    myConvTriangleStripToLines(model[0]);
+    myConvTriangleStripToLines(model[1]);
+    myConvTriangleStripToLines(model[2]);
+    myConvTriangleStripToLines(model[3]);
+  }
 
   // プロジェクション行列（perspectiveを使用。frustum時と描画結果は同じ）
   var fieldOfView = 45.0; // 視野角（度）
@@ -590,6 +669,9 @@ function init3D(gl, _glu) {
     gl.uniform1fv(uOffsetX[i], offsetX);
     gl.uniform1fv(uOffsetY[i], offsetY);
   }
+  wireframeShader.use();
+  gl.uniformMatrix4fv(uViewProjMatrixWireframe, false, viewProjMatrix);
+  gl.uniform3fv(uLineColorWireframe, [1.0, 1.0, 1.0]);
 
   mySetLightPos(gl);
 
@@ -682,7 +764,9 @@ function glModelActiveTexture(gl, id) {
   return gl.TEXTURE1;
 }
 function glModelBindPositionBuffer(gl, id) {
-  if (shadowFlag) {
+  if (useWireframe) {
+    _GLShader.bindPositionBuffer(aVertexPositionWireframe);
+  } else if (shadowFlag) {
     if (id == 0) {
       _GLShader.bindPositionBuffer(aVertexPositionShadowmap[1]);
     } else {
@@ -697,7 +781,8 @@ function glModelBindPositionBuffer(gl, id) {
   }
 }
 function glModelBindNormalBuffer(gl, id) {
-  if (shadowFlag) {
+  if (useWireframe) {
+  } else if (shadowFlag) {
   } else {
     if (id == 0) {
       _GLShader.bindNormalBuffer(aVertexNormal[1]);
@@ -707,7 +792,8 @@ function glModelBindNormalBuffer(gl, id) {
   }
 }
 function glModelBindColorBuffer(gl, id) {
-  if (shadowFlag) {
+  if (useWireframe) {
+  } else if (shadowFlag) {
   } else {
     if (id != 0) {
       _GLShader.bindColorBuffer(aVertexColor);
@@ -715,7 +801,8 @@ function glModelBindColorBuffer(gl, id) {
   }
 }
 function glModelBindTextureCoordBuffer(gl, id) {
-  if (shadowFlag) {
+  if (useWireframe) {
+  } else if (shadowFlag) {
   } else {
     if (id == 0) {
       _GLShader.bindTextureCoordBuffer(aTextureCoord);
@@ -750,7 +837,10 @@ function glTextureWrap(gl, index) {
 
 // _GLDraw用
 function glDrawUseProgram(gl, p, index) {
-  if (shadowFlag) {
+  if (useWireframe) {
+    // ワイヤーフレーム表示用プログラムオブジェクトの選択
+    wireframeShader.use();
+  } else if (shadowFlag) {
     // シャドウマップ用プログラムオブジェクトの選択
     shadowmapShader.use();
   } else {
@@ -780,7 +870,9 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
   }
   var modelMatrix = glu.glMatrix();
 
-  if (shadowFlag) {
+  if (useWireframe) {
+    gl.uniformMatrix4fv(uModelMatrixWireframe, false, modelMatrix);
+  } else if (shadowFlag) {
     gl.uniformMatrix4fv(uModelMatrixShadowmap, false, modelMatrix);
   } else {
     var i = (p.id() == 0) ? 1 : 0;
