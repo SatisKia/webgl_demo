@@ -194,7 +194,7 @@ function init3D(gl, _glu) {
   var uProjectionMatrix = shader.uniform("uProjectionMatrix");
   uModelViewMatrix = shader.uniform("uModelViewMatrix");
   uNormalMatrix = shader.uniform("uNormalMatrix");
-  uInvMatrix = shader.uniform("uInvMatrix"); // モデル座標変換行列の逆行列
+  uInvMatrix = shader.uniform("uInvMatrix"); // モデル×ビュー座標変換行列の逆行列
 
   var uPointLightColor = shader.uniform("uPointLightColor"); // 点光源の色
   uPointLightPosition = shader.uniform("uPointLightPosition"); // 点光源の位置
@@ -238,11 +238,17 @@ function init3D(gl, _glu) {
 
   gl.uniform3fv(uAmbientLightColor, [0.6, 0.6, 0.6]);
 
-  var eyeDirection = [
-    -projectionMatrix[ 2],
-    -projectionMatrix[ 6],
-    -projectionMatrix[10]
-  ];
+  glu.push();
+  glu.set(glu.utMatrix(projectionMatrix));
+  glu.multiply(glu.utMatrix(modelViewMatrix));
+  var viewProjMatrix = glu.glMatrix();
+  glu.pop();
+  glu.normalize(
+    -viewProjMatrix[ 2],
+    -viewProjMatrix[ 6],
+    -viewProjMatrix[10]
+  );
+  var eyeDirection = [glu.normalize_x, glu.normalize_y, glu.normalize_z];
   gl.uniform3fv(uEyeDirection, eyeDirection);
   gl.uniform3fv(uSpecularLightColor, [1.0, 1.0, 1.0]);
 

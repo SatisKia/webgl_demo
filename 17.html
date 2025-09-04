@@ -310,7 +310,7 @@ function init3D(gl, glu) {
 
   shader.use();
   gl.uniform1i(uSampler, 0);
-  gl.uniform1i(uFog, useFog);
+  gl.uniform1i(uFog, useFog ? 1 : 0);
   gl.uniform3fv(uFogColor, [0.0, 0.0, 1.0]);
   gl.uniform1f(uFogNear, 5.0);
   gl.uniform1f(uFogFar, 20.0);

@@ -60,6 +60,7 @@ function init3D(gl, glu) {
   var look_y = 0.0;
   var look_z = 0.0;
   glu.lookAt(camera_x, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+  var viewMatrix = glu.glMatrix();
   glu.push();
   glu.translate(0.0, 0.0, -3.0);
   glu.rotate(15.0, 0, 0, 1); // Z軸回転（単位：度）
@@ -212,7 +213,7 @@ function init3D(gl, glu) {
   var uProjectionMatrix = shader.uniform("uProjectionMatrix");
   var uModelViewMatrix = shader.uniform("uModelViewMatrix");
   var uNormalMatrix = shader.uniform("uNormalMatrix");
-  var uInvMatrix = shader.uniform("uInvMatrix"); // モデル座標変換行列の逆行列
+  var uInvMatrix = shader.uniform("uInvMatrix"); // モデル×ビュー座標変換行列の逆行列
 
   var uDirectionalLightColor = shader.uniform("uDirectionalLightColor");
   var uDirectionalLightPosition = shader.uniform("uDirectionalLightPosition");
@@ -246,11 +247,17 @@ function init3D(gl, glu) {
 
   gl.uniform3fv(uAmbientLightColor, [0.6, 0.6, 0.6]);
 
-  var eyeDirection = [
-    -projectionMatrix[ 2],
-    -projectionMatrix[ 6],
-    -projectionMatrix[10]
-  ];
+  glu.push();
+  glu.set(glu.utMatrix(projectionMatrix));
+  glu.multiply(glu.utMatrix(viewMatrix));
+  var viewProjMatrix = glu.glMatrix();
+  glu.pop();
+  glu.normalize(
+    -viewProjMatrix[ 2],
+    -viewProjMatrix[ 6],
+    -viewProjMatrix[10]
+  );
+  var eyeDirection = [glu.normalize_x, glu.normalize_y, glu.normalize_z];
   gl.uniform3fv(uEyeDirection, eyeDirection);
   gl.uniform3fv(uSpecularLightColor, [1.0, 1.0, 1.0]);
 

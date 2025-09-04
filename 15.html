@@ -1305,7 +1305,7 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
   if (shadowFlag) {
     gl.uniformMatrix4fv(uModelMatrixShadowmap, false, modelMatrix);
 
-    gl.uniform1i(uMirrorShadowmap, mirrorFlag);
+    gl.uniform1i(uMirrorShadowmap, mirrorFlag ? 1 : 0);
   } else {
     var i = (p.id() == 0 || p.id() == 4) ? 1 : 0;
 
@@ -1315,7 +1315,7 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
     glu.invert();
     gl.uniformMatrix4fv(uInvModelMatrix[i], false, glu.glMatrix());
 
-    gl.uniform1i(uMirror[i], mirrorFlag);
+    gl.uniform1i(uMirror[i], mirrorFlag ? 1 : 0);
   }
 
   glu.pop();

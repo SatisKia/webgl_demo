@@ -670,8 +670,8 @@ function init3D(gl, _glu) {
   var viewProjMatrix = glu.glMatrix();
 
   shadowmapShader.use();
-  gl.uniform1i(uHighPrecisionShadowmap, useHighPrecision);
-  gl.uniform1i(uTextureFloatShadowmap, shadowFrameBuffer.textureFloat);
+  gl.uniform1i(uHighPrecisionShadowmap, useHighPrecision ? 1 : 0);
+  gl.uniform1i(uTextureFloatShadowmap, shadowFrameBuffer.textureFloat ? 1 : 0);
   for (i = 0; i < 2; i++) {
     sceneShader[i].use();
     gl.uniformMatrix4fv(uViewProjMatrix[i], false, viewProjMatrix);
@@ -686,8 +686,8 @@ function init3D(gl, _glu) {
     if (i == 1) {
       gl.uniform1i(uSampler, 1/*TEXTURE1*/);
     }
-    gl.uniform1i(uHighPrecision[i], useHighPrecision);
-    gl.uniform1i(uTextureFloat[i], shadowFrameBuffer.textureFloat);
+    gl.uniform1i(uHighPrecision[i], useHighPrecision ? 1 : 0);
+    gl.uniform1i(uTextureFloat[i], shadowFrameBuffer.textureFloat ? 1 : 0);
 
     gl.uniform1f(uShadowBlur[i], shadowBlur);
     var dx = (1.0 / getWidth ()) * shadowBlur;
