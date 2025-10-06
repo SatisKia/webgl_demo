@@ -14,6 +14,7 @@ copy electron\index.js     build\tmp
 copy electron\package.json build\tmp
 
 cd build
+set NODE_TLS_REJECT_UNAUTHORIZED=0
 call electron-packager ./tmp webgl_demo --app-version=0.0.1 --electron-version=24.1.3 --platform=win32 --arch=x64 --overwrite
 @echo on
 cd ..
