@@ -496,7 +496,7 @@ function myDraw(gl, glu) {
 }
 
 function paint2D(g) {
-  g.setFont(24, "ＭＳ ゴシック");
+  g.setFont(24, [ "MS Gothic", "sans-serif" ]);
   g.setColor(g.getColorOfRGB(255, 0, 255));
   g.drawString("focusDepth " + (_INT(focusDepth * 100) / 100), 0, 24);
   g.drawString("focusRange " + (_INT(focusRange * 100) / 100), 0, 48);

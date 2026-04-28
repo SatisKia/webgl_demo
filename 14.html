@@ -16,6 +16,10 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
+var useAntialias = true; // アンチエイリアスを使用するかどうか。
+var useMipmap = true; // ミップマップを使用するかどうか。
+var useAnisotropicFiltering = true; // 異方性フィルタ（Anisotropic Filtering）を使用するかどうか。
+
 var useGLSprite = true;
 var gls; // useGLSpriteがtrueの時に使用
 
@@ -210,7 +214,7 @@ function paint(g) {
   g.setColor(g.getColorOfRGB(127, 127, 127));
   g.fillRect(0, 0, getWidth(), getHeight());
 
-  g.setFont(24, "ＭＳ ゴシック");
+  g.setFont(24, [ "MS Gothic", "sans-serif" ]);
 
   // テクスチャの読み込み
   if (isImageBusy()) {
@@ -234,7 +238,7 @@ function paint(g) {
     } else if (!image_loaded) {
       image_loaded = true;
       window.setTimeout(function() {
-        setCurrent3D("hoge_canvas", "fuga_canvas", true);
+        setCurrent3D("hoge_canvas", "fuga_canvas", true, useAntialias);
       }, 100);
     }
   }
@@ -728,7 +732,7 @@ if (useGLSprite) {
 }
 
 function paint2D(g) {
-  g.setFont(24, "ＭＳ ゴシック");
+  g.setFont(24, [ "MS Gothic", "sans-serif" ]);
   g.setColor(g.getColorOfRGB(255, 0, 255));
   g.drawString("rotateX " + rotateX, 0, 24);
   g.drawString("rotateY " + rotateY, 0, 48);
@@ -803,6 +807,20 @@ function glTextureFlipY(index) {
 }
 function glTextureFilter(gl, index) {
   return gl.LINEAR;
+}
+function glTextureMinFilter(gl, index) {
+  if (useMipmap) {
+    return gl.LINEAR_MIPMAP_LINEAR;
+  } else {
+    return gl.LINEAR;
+  }
+}
+function glTextureMaxAnisotropy(index) {
+  if (useAnisotropicFiltering) {
+    return 8.0;
+  } else {
+    return 0.0;
+  }
 }
 function glTextureWrap(gl, index) {
   return gl.REPEAT;

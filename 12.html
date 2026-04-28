@@ -13,6 +13,10 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
+var useAntialias = true; // アンチエイリアスを使用するかどうか。
+var useMipmap = true; // ミップマップを使用するかどうか。
+var useAnisotropicFiltering = true; // 異方性フィルタ（Anisotropic Filtering）を使用するかどうか。
+
 var glu;
 
 var image_loaded = false;
@@ -54,7 +58,7 @@ function paint(g) {
   g.setColor(g.getColorOfRGB(127, 127, 127));
   g.fillRect(0, 0, getWidth(), getHeight());
 
-  g.setFont(24, "ＭＳ ゴシック");
+  g.setFont(24, [ "MS Gothic", "sans-serif" ]);
 
   // テクスチャの読み込み
   if (isImageBusy()) {
@@ -78,7 +82,7 @@ function paint(g) {
     } else if (!image_loaded) {
       image_loaded = true;
       window.setTimeout(function() {
-        setCurrent3D("hoge_canvas", "fuga_canvas");
+        setCurrent3D("hoge_canvas", "fuga_canvas", false, useAntialias);
       }, 100);
     }
   }
@@ -182,7 +186,7 @@ function paint3D(gl, glu) {
 }
 
 function paint2D(g) {
-  g.setFont(24, "ＭＳ ゴシック");
+  g.setFont(24, [ "MS Gothic", "sans-serif" ]);
   g.setColor(g.getColorOfRGB(255, 0, 255));
   g.drawString("rotateX " + rotateX, 0, 24);
   g.drawString("rotateY " + rotateY, 0, 48);
@@ -223,6 +227,30 @@ function glTextureFlipY(index) {
 }
 function glTextureFilter(gl, index) {
   return gl.LINEAR;
+}
+function glTextureMinFilter(gl, index) {
+  if (useMipmap) {
+    // gl.NEAREST_MIPMAP_NEAREST：ミップの1レベルだけ使い、最近傍の1テクセルだけ。低品質。
+    // gl.LINEAR_MIPMAP_NEAREST：ミップの1レベルだけ使い、周囲4テクセルのバイリニア補間。中間的品質。
+    // gl.NEAREST_MIPMAP_LINEAR：ミップの2レベルを補間、各レベルで最近傍の1テクセルがサンプリングされる。高品質。
+    // gl.LINEAR_MIPMAP_LINEAR：ミップの2レベルを補間、各レベルで周囲4テクセルのバイリニア補間を行う。いわゆる三線形（トリリニア）。最高品質。
+    return gl.LINEAR_MIPMAP_LINEAR;
+  } else {
+    return gl.LINEAR;
+  }
+}
+function glTextureMaxAnisotropy(index) {
+  // 異方性フィルタを使用する場合は1.0～MAX_TEXTURE_MAX_ANISOTROPY_EXTの実数を返す。
+  // 0.0を返すと、異方性フィルタを使用しない。
+  // なお、実数とはいえ、GPU側でサポートする段階（例：1、2、4、8、16…）に丸められることが多い。一般的には次のいずれかの値。
+  //    4.0：軽め／モバイル寄りの「品質を上げつつ控えめ」
+  //    8.0：PCゲームの「高」品質でよく見るバランス型の代表値のひとつ
+  //   16.0：「最高」「ウルトラ」で上限近くまで取ることが多い
+  if (useAnisotropicFiltering) {
+    return 8.0;
+  } else {
+    return 0.0;
+  }
 }
 function glTextureWrap(gl, index) {
   return gl.REPEAT;
