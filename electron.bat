@@ -1,5 +1,6 @@
 md build
 md build\tmp
+copy icon.ico              build\tmp
 copy 15.html               build\tmp
 copy d2js.js               build\tmp
 copy d2js_gl.js            build\tmp
@@ -16,7 +17,7 @@ copy electron\package.json build\tmp
 set NODE_TLS_REJECT_UNAUTHORIZED=0
 
 cd build
-call electron-packager ./tmp webgl_demo --app-version=0.0.1 --electron-version=24.1.3 --platform=win32 --arch=x64 --overwrite
+call electron-packager ./tmp webgl_demo --app-version=0.0.1 --electron-version=24.1.3 --platform=win32 --arch=x64 --icon=./tmp/icon.ico --overwrite
 @echo on
 cd ..
 
