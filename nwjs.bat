@@ -12,7 +12,7 @@ copy model_ground.js   build\tmp
 copy model_mesh.js     build\tmp
 copy texture_witch.js  build\tmp
 copy texture_mesh.js   build\tmp
-copy nwjs\api.js       build\tmp
+copy nwjs\src\api.js   build\tmp
 copy nwjs\package.json build\tmp
 
 set NODE_TLS_REJECT_UNAUTHORIZED=0
@@ -21,7 +21,7 @@ cd build\tmp
 call npm install --production
 @echo on
 cd ..
-copy ..\nwjs\app.json tmp\package.json
+copy ..\nwjs\src\package.json tmp
 call nwbuild --glob=false tmp
 @echo on
 cd ..
