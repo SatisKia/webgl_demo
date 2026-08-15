@@ -12,7 +12,8 @@ window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
-var useGouraud = false;
+var useFlat = false;
+var useGouraud = false; // useFlatがfalseの時のみ参照される
 
 var model;
 
@@ -41,6 +42,13 @@ function paint(g) {
 }
 
 function init3D(gl, glu) {
+  if (useFlat) {
+    var extDerivatives = gl.getExtension('OES_standard_derivatives');
+    if (!extDerivatives) {
+      useFlat = false;
+    }
+  }
+
   var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
   var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
   var zNear = 0.1; // 表示するオブジェクトの範囲（手前）
@@ -68,6 +76,71 @@ function init3D(gl, glu) {
   glu.rotate(45.0, 1, 0, 0); // X軸回転（単位：度）
   var modelViewMatrix = glu.glMatrix();
   glu.pop();
+
+  // フラットシェーディング（Flat shading）
+  const vsSourceFlat = `
+    //precision mediump int;
+    //precision mediump float;
+
+    attribute vec3 aVertexPosition;
+    attribute vec4 aVertexColor;
+
+    uniform mat4 uProjectionMatrix;
+    uniform mat4 uModelViewMatrix;
+
+    varying lowp vec4 vColor;
+    varying highp vec3 vPosition;
+
+    void main(void) {
+      vec4 position = uModelViewMatrix * vec4(aVertexPosition, 1.0);
+      gl_Position = uProjectionMatrix * position;
+
+      vColor = aVertexColor;
+
+      vPosition = position.xyz;
+    }
+  `;
+  const fsSourceFlat = `
+    #extension GL_OES_standard_derivatives : enable
+
+    //precision mediump int;
+    precision mediump float;
+
+    uniform mat4 uInvMatrix;
+
+    uniform vec3 uDirectionalLightColor;
+    uniform vec3 uDirectionalLightPosition;
+
+    uniform vec3 uAmbientLightColor;
+
+    uniform vec3 uEyeDirection;
+    uniform vec3 uSpecularLightColor;
+
+    uniform vec3 uDiffuse;
+    uniform vec3 uAmbient;
+    uniform vec3 uSpecular;
+    uniform float uShininess;
+
+    varying lowp vec4 vColor;
+    varying highp vec3 vPosition;
+
+    void main(void) {
+      highp vec3 normal = normalize(cross(dFdx(vPosition), dFdy(vPosition)));
+
+      highp vec3 directionalLightPosition = normalize(uDirectionalLightPosition);
+      highp float cosAngle = clamp(dot(normal, directionalLightPosition), 0.0, 1.0); // ベクトルの内積
+      highp vec3 diffuse = (uDirectionalLightColor * uDiffuse) * cosAngle;
+
+      lowp vec3 ambient = uAmbientLightColor * uAmbient;
+
+      highp vec3 invLight = normalize(uInvMatrix * vec4(uDirectionalLightPosition, 0.0)).xyz;
+      highp vec3 halfVector = normalize(invLight + uEyeDirection);
+      highp float powCosAngle = pow(clamp(dot(normal, halfVector), 0.0, 1.0), uShininess); // 内積によって得られた結果をべき乗によって収束させる
+      highp vec3 specular = (uSpecularLightColor * uSpecular) * powCosAngle;
+
+      gl_FragColor = vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
+    }
+  `;
 
   // フォンシェーディング（Phong shading）
   const vsSource = `
@@ -198,7 +271,9 @@ function init3D(gl, glu) {
     }
   `;
 
-  if (useGouraud) {
+  if (useFlat) {
+    shader = new _GLShader(vsSourceFlat, fsSourceFlat);
+  } else if (useGouraud) {
     shader = new _GLShader(vsSourceGouraud, fsSourceGouraud);
   } else {
     shader = new _GLShader(vsSource, fsSource);
@@ -234,12 +309,14 @@ function init3D(gl, glu) {
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
-  glu.push();
-  glu.set(glu.utMatrix(modelViewMatrix));
-  glu.invert(); // 逆行列
-  glu.transpose(); // 行列の転置
-  gl.uniformMatrix4fv(uNormalMatrix, false, glu.glMatrix());
-  glu.pop();
+  if (!useFlat) {
+    glu.push();
+    glu.set(glu.utMatrix(modelViewMatrix));
+    glu.invert(); // 逆行列
+    glu.transpose(); // 行列の転置
+    gl.uniformMatrix4fv(uNormalMatrix, false, glu.glMatrix());
+    glu.pop();
+  }
 
   glu.push();
   glu.set(glu.utMatrix(viewMatrix));
@@ -314,7 +391,9 @@ function glModelBindPositionBuffer(gl) {
   _GLShader.bindPositionBuffer(aVertexPosition);
 }
 function glModelBindNormalBuffer(gl) {
-  _GLShader.bindNormalBuffer(aVertexNormal);
+  if (!useFlat) {
+    _GLShader.bindNormalBuffer(aVertexNormal);
+  }
 }
 function glModelBindColorBuffer(gl) {
   _GLShader.bindColorBuffer(aVertexColor);
