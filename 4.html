@@ -13,6 +13,7 @@ window.onorientationchange = d2js_onorientationchange;
 window.onresize = d2js_onresize;
 
 var setTransparency = false;
+var useUvOffset = false;
 
 var img_loading = false;
 var image_array = new Array(1);
@@ -20,6 +21,7 @@ var glt;
 
 var scroll = 0.0;
 var old_time;
+var uUvOffset;
 
 function frameTime() {
   return 1000 / 30/*フレーム*/;
@@ -83,6 +85,23 @@ function init3D(gl, glu) {
       vTextureCoord = aTextureCoord;
     }
   `;
+  const vsSourceUvOffset = `
+    attribute vec3 aVertexPosition;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uProjectionMatrix;
+    uniform mat4 uModelViewMatrix;
+
+    uniform vec2 uUvOffset;
+
+    varying highp vec2 vTextureCoord;
+
+    void main(void) {
+      gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aVertexPosition, 1.0);
+
+      vTextureCoord = aTextureCoord + uUvOffset;
+    }
+  `;
   const fsSource = `
     uniform sampler2D uSampler;
 
@@ -92,7 +111,7 @@ function init3D(gl, glu) {
       gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
     }
   `;
-  var shader = new _GLShader(vsSource, fsSource);
+  var shader = new _GLShader(useUvOffset ? vsSourceUvOffset : vsSource, fsSource);
   shader.use();
 
   //---- シェーダープログラムの変数ここから ----
@@ -101,6 +120,10 @@ function init3D(gl, glu) {
 
   var uProjectionMatrix = shader.uniform("uProjectionMatrix");
   var uModelViewMatrix = shader.uniform("uModelViewMatrix");
+
+  if (useUvOffset) {
+    uUvOffset = shader.uniform("uUvOffset");
+  }
 
   var uSampler = shader.uniform("uSampler");
   //---- シェーダープログラムの変数ここまで ----
@@ -134,6 +157,10 @@ function init3D(gl, glu) {
   gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
   gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
 
+  if (useUvOffset) {
+    gl.uniform2f(uUvOffset, scroll, scroll);
+  }
+
   gl.uniform1i(uSampler, 0);
 
   return true;
@@ -164,7 +191,11 @@ function paint3D(gl, glu) {
 
   //scroll = -0.25;
   scroll -= 0.01;
-  glt.translate(0, scroll, scroll);
+  if (useUvOffset) {
+    gl.uniform2f(uUvOffset, scroll, scroll);
+  } else {
+    glt.translate(0, scroll, scroll);
+  }
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

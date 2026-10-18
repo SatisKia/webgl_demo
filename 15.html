@@ -432,10 +432,10 @@ function init3D(gl, _glu) {
       float value = 0.0;
       float amplitude = 1.0;
       float frequency = 1.0;
-      for(int i = 0; i < 4; i++) {
-        value += amplitude * smoothNoise(st * frequency * scale);
-        amplitude *= 0.5; // 振幅を半分に
-        frequency *= 2.0; // 周波数を2倍に
+      for(int i = 0; i < 4; i++) { // オクターブ（重ね合わせの層数）
+        value += amplitude * smoothNoise(st * frequency * scale); // 各オクターブの加算分を重ねたFBM値
+        amplitude *= 0.5; // 振幅を半分 → 細部の影響を弱める
+        frequency *= 2.0; // 周波数を2倍 → より細かい模様
       }
       return value;
     }
@@ -450,15 +450,15 @@ function init3D(gl, _glu) {
       float dx, float dy // 波の進行方向
     ) {
       if (uWaveType == 1) {
-        float wave = sin(x * dx * freq + y * dy * freq + time * speed);
-        return wave * amp;
+        float _wave = sin(x * dx * freq + y * dy * freq + time * speed);
+        return _wave * amp;
       } else {
         // ノイズを加えた波の生成
         vec2 noiseCoord = vec2(x * dx * uNoiseScale, y * dy * uNoiseScale + time * uNoiseTimeScale);
         float noiseValue = noise(noiseCoord, 1.0) * uNoiseStrength;
 
-        float wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
-        return wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
+        float _wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
+        return _wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
       }
     }
 
@@ -594,10 +594,10 @@ function init3D(gl, _glu) {
       float value = 0.0;
       float amplitude = 1.0;
       float frequency = 1.0;
-      for(int i = 0; i < 4; i++) {
-        value += amplitude * smoothNoise(st * frequency * scale);
-        amplitude *= 0.5;
-        frequency *= 2.0;
+      for(int i = 0; i < 4; i++) { // オクターブ（重ね合わせの層数）
+        value += amplitude * smoothNoise(st * frequency * scale); // 各オクターブの加算分を重ねたFBM値
+        amplitude *= 0.5; // 振幅を半分 → 細部の影響を弱める
+        frequency *= 2.0; // 周波数を2倍 → より細かい模様
       }
       return value;
     }
@@ -605,15 +605,15 @@ function init3D(gl, _glu) {
     // 波の生成関数
     float wave(float x, float y, float freq, float amp, float speed, float time, float dx, float dy) {
       if (uWaveType == 1) {
-        float wave = sin(x * dx * freq + y * dy * freq + time * speed);
-        return wave * amp;
+        float _wave = sin(x * dx * freq + y * dy * freq + time * speed);
+        return _wave * amp;
       } else {
         // ノイズを加えた波の生成
         vec2 noiseCoord = vec2(x * dx * uNoiseScale, y * dy * uNoiseScale + time * uNoiseTimeScale);
         float noiseValue = noise(noiseCoord, 1.0) * uNoiseStrength;
 
-        float wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
-        return wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
+        float _wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
+        return _wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
       }
     }
 
@@ -766,10 +766,10 @@ function init3D(gl, _glu) {
       float value = 0.0;
       float amplitude = 1.0;
       float frequency = 1.0;
-      for(int i = 0; i < 4; i++) {
-        value += amplitude * smoothNoise(st * frequency * scale);
-        amplitude *= 0.5;
-        frequency *= 2.0;
+      for(int i = 0; i < 4; i++) { // オクターブ（重ね合わせの層数）
+        value += amplitude * smoothNoise(st * frequency * scale); // 各オクターブの加算分を重ねたFBM値
+        amplitude *= 0.5; // 振幅を半分 → 細部の影響を弱める
+        frequency *= 2.0; // 周波数を2倍 → より細かい模様
       }
       return value;
     }
@@ -777,15 +777,15 @@ function init3D(gl, _glu) {
     // 波の生成関数
     float wave(float x, float y, float freq, float amp, float speed, float time, float dx, float dy) {
       if (uWaveType == 1) {
-        float wave = sin(x * dx * freq + y * dy * freq + time * speed);
-        return wave * amp;
+        float _wave = sin(x * dx * freq + y * dy * freq + time * speed);
+        return _wave * amp;
       } else {
         // ノイズを加えた波の生成
         vec2 noiseCoord = vec2(x * dx * uNoiseScale, y * dy * uNoiseScale + time * uNoiseTimeScale);
         float noiseValue = noise(noiseCoord, 1.0) * uNoiseStrength;
 
-        float wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
-        return wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
+        float _wave = sin(x * dx * freq + y * dy * freq + time * speed + noiseValue * 3.14159);
+        return _wave * amp * (1.0 + noiseValue * uNoiseAmplitude); // 振幅にもノイズを反映
       }
     }
 
